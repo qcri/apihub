@@ -1,0 +1,74 @@
+name: poetry pytest workflow
+on: push
+
+jobs:
+  # Label of the container job
+  container-job:
+    # Containers must run in Linux based operating systems
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.7, 3.8]
+
+    # Docker Hub image that `container-job` executes in
+    container: python:3.7-slim
+
+    # Service containers to run with `container-job`
+    services:
+      # Label used to access the service container
+      redis:
+        # Docker Hub image
+        image: redis
+        # Set health checks to wait until redis has started
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres:
+        # Docker Hub image
+        image: postgres
+        # Provide the password for postgres
+        env:
+          POSTGRES_USER: dbuser
+          POSTGRES_PASSWORD: dbpass
+          POSTGRES_DB: test
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # Downloads a copy of the code in your repository before running CI tests
+      - name: Check out repository code
+        uses: actions/checkout@v2
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Performs a clean installation of all dependencies in the `package.json` file
+      # For more information, see https://docs.npmjs.com/cli/ci.html
+      - name: Install poetry
+        run: |
+          curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+
+      - name: Install dependencies
+        run: |
+          poetry install
+
+      - name: Run pytests
+        # Runs a script that creates a Redis client, populates
+        # the client with data, and retrieves data
+        run: |
+          poetry run  pytest
+        # Environment variable used by the `client.js` script to create a new Redis client.
+        env:
+          REDIS: redis://redis:6379/1
+          IN_REDIS: redis://redis:6379/1
+          OUT_REDIS: redis://redis:6379/1
+          DB_URI: "postgresql://dbuser:dbpass@localhost:5432/test"
