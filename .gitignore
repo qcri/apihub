@@ -1,0 +1,7 @@
+**/*.swp
+**/__pycache__
+venv
+env
+*.json
+.python-version
+.env

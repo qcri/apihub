@@ -1,0 +1,66 @@
+[tool.poetry]
+name = "apihub"
+version = "0.1.0"
+description = "a API gateway on top of Redis"
+license = "MIT"
+authors = ["Yifan Zhang <freqyifan@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.scripts]
+apihub_server = "apihub.server:main"
+apihub_result = "apihub.result:main"
+
+[tool.black]
+line-length = 88
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.flake8]
+ignore = "E203, E266, E402, E501, W503, F403, F401"
+max-line-length = 88
+max-complexity = 18
+select = "B,C,E,F,W,T4,B9"
+
+[tool.pytest.ini_options]
+python_files = "*.py"
+addopts = "--color=yes -p no:warnings --doctest-modules --ignore=templates --ignore=static --doctest-glob *.rst"
+doctest_optionflags= "NORMALIZE_WHITESPACE ELLIPSIS"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+prometheus-client = ">=0.7.0,<0.8.0"
+python-dotenv = "^0.17.1"
+redis = "^3.5.3"
+fastapi = "^0.65.1"
+uvicorn = "^0.13.4"
+fastapi-jwt-auth = "^0.5.0"
+psycopg2-binary = "^2.8.6"
+SQLAlchemy = "^1.4.15"
+SQLAlchemy-Utils = "^0.37.4"
+tanbih-pipeline = {version = "0.11.*", extras = ["redis"]}
+python-multipart = "^0.0.5"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+pre-commit = "^2.13.0"
+pytest-asyncio = "^0.15.1"
+pytest-dotenv = "^0.5.2"
+factory-boy = "^3.2.0"
+requests = "^2.25.1"
+mypy = "^0.812"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
