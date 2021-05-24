@@ -5,3 +5,4 @@ env
 *.json
 .python-version
 .env
+dist

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "a API gateway on top of Redis"
 license = "MIT"
 authors = ["Yifan Zhang <freqyifan@gmail.com>"]
-readme = "README.md"
+readme = "README.rst"
 
 [tool.poetry.scripts]
 apihub_server = "apihub.server:main"
@@ -39,7 +39,7 @@ addopts = "--color=yes -p no:warnings --doctest-modules --ignore=templates --ign
 doctest_optionflags= "NORMALIZE_WHITESPACE ELLIPSIS"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.7"
 prometheus-client = ">=0.7.0,<0.8.0"
 python-dotenv = "^0.17.1"
 redis = "^3.5.3"
