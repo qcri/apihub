@@ -17,204 +17,66 @@
 .. raw:: html
 
    <!-- PROJECT LOGO -->
+   <br />
+    <p align="center">
+      <a href="https://github.com/yifan/apihub">
+        <img src="https://raw.githubusercontent.com/yifan/apihub/master/images/APIHub.png" alt="Logo" width="600" height="400">
+      </a>
 
-.. raw:: html
+      <h3 align="center">APIHub</h3>
 
-   <p align="center">
-
-.. raw:: html
-
-   <h3 align="center">
-
-APIHub
-
-.. raw:: html
-
-   </h3>
-
-.. raw:: html
-
-   <p align="center">
-
-APIHub is a platform to dynamically serve API services on-fly. API
-service workers can be deployed when needed. Explore the docs » View
-Demo · Report Bug · Request Feature
-
-.. raw:: html
-
-   </p>
-
-.. raw:: html
-
-   </p>
+      <p align="center">
+        APIHub is a platform to dynamically serve API services on-fly. API service workers can be deployed when needed.
+        <br />
+        <a href="https://github.com/yifan/apihub"><strong>Explore the docs »</strong></a>
+        <br />
+        <br />
+        <a href="https://github.com/yifan/apihub">View Demo</a>
+        ·
+        <a href="https://github.com/yifan/apihub/issues">Report Bug</a>
+        ·
+        <a href="https://github.com/yifan/apihub/issues">Request Feature</a>
+      </p>
+        <br />
+        <a href="https://github.com/yifan/apihub"><strong>Explore the docs »</strong></a>
+        <br />
+        <br />
+        <a href="https://github.com/yifan/apihub">View Demo</a>
+        ·
+        <a href="https://github.com/yifan/apihub/issues">Report Bug</a>
+        ·
+        <a href="https://github.com/yifan/apihub/issues">Request Feature</a>
+      </p>
+    </p>
 
 .. raw:: html
 
    <!-- TABLE OF CONTENTS -->
+    <details open="open">
+      <summary><h2 style="display: inline-block">Table of Contents</h2></summary>
+      <ol>
+        <li>
+          <a href="#about-the-project">About The Project</a>
+          <ul>
+            <li><a href="#built-with">Built With</a></li>
+          </ul>
+        </li>
+        <li>
+          <a href="#getting-started">Getting Started</a>
+          <ul>
+            <li><a href="#prerequisites">Prerequisites</a></li>
+            <li><a href="#installation">Installation</a></li>
+          </ul>
+        </li>
+        <li><a href="#usage">Usage</a></li>
+        <li><a href="#roadmap">Roadmap</a></li>
+        <li><a href="#contributing">Contributing</a></li>
+        <li><a href="#license">License</a></li>
+        <li><a href="#contact">Contact</a></li>
+        <li><a href="#acknowledgements">Acknowledgements</a></li>
+      </ol>
+    </details>
 
-.. raw:: html
-
-   <details open="open">
-
-.. raw:: html
-
-   <summary>
-
-.. raw:: html
-
-   <h2 style="display: inline-block">
-
-Table of Contents
-
-.. raw:: html
-
-   </h2>
-
-.. raw:: html
-
-   </summary>
-
-.. raw:: html
-
-   <ol>
-
-.. raw:: html
-
-   <li>
-
-About The Project
-
-.. raw:: html
-
-   <ul>
-
-.. raw:: html
-
-   <li>
-
-Built With
-
-.. raw:: html
-
-   </li>
-
-.. raw:: html
-
-   </ul>
-
-.. raw:: html
-
-   </li>
-
-.. raw:: html
-
-   <li>
-
-Getting Started
-
-.. raw:: html
-
-   <ul>
-
-.. raw:: html
-
-   <li>
-
-Prerequisites
-
-.. raw:: html
-
-   </li>
-
-.. raw:: html
-
-   <li>
-
-Installation
-
-.. raw:: html
-
-   </li>
-
-.. raw:: html
-
-   </ul>
-
-.. raw:: html
-
-   </li>
-
-.. raw:: html
-
-   <li>
-
-Usage
-
-.. raw:: html
-
-   </li>
-
-.. raw:: html
-
-   <li>
-
-Roadmap
-
-.. raw:: html
-
-   </li>
-
-.. raw:: html
-
-   <li>
-
-Contributing
-
-.. raw:: html
-
-   </li>
-
-.. raw:: html
-
-   <li>
-
-License
-
-.. raw:: html
-
-   </li>
-
-.. raw:: html
-
-   <li>
-
-Contact
-
-.. raw:: html
-
-   </li>
-
-.. raw:: html
-
-   <li>
-
-Acknowledgements
-
-.. raw:: html
-
-   </li>
-
-.. raw:: html
-
-   </ol>
-
-.. raw:: html
-
-   </details>
-
-.. raw:: html
-
-   <!-- ABOUT THE PROJECT -->
 
 About The Project
 =================
