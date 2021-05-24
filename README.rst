@@ -78,6 +78,11 @@
     </details>
 
 
+
+.. |workflows| images:: https://github.com/yifan/apihub/actions/workflows/pytest-redis-postgres-workflow.yml/badge.svg
+
+
+
 About The Project
 =================
 
@@ -270,6 +275,7 @@ Copyright (C) 2021, Qatar Computing Research Institute, HBKU
 .. raw:: html
 
    <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
+
 
 .. |Contributors| image:: https://img.shields.io/github/contributors/yifan/apihub.svg?style=for-the-badge
    :target: https://github.com/yifan/apihub/graphs/contributors
