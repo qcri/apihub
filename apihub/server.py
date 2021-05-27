@@ -1,21 +1,23 @@
+import sys
 import json
 import functools
+from datetime import datetime
+from typing import Dict, Any
 
 from fastapi import FastAPI, HTTPException, Request, Query, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from fastapi_jwt_auth import AuthJWT
 from fastapi_jwt_auth.exceptions import AuthJWTException
-import uvicorn
-from pipeline import Message
 from dotenv import load_dotenv
+from pipeline import Message, Settings
+from apihub_users.security.depends import RateLimiter, RateLimits, require_user
+from apihub_users.security.router import router as security_router
+from apihub_users.subscription.helpers import record_usage
+from apihub_users.subscription.depends import require_subscription
+from apihub_users.subscription.router import router as application_router
 
-from apihub.security.depends import RateLimiter, RateLimits, require_user
-from apihub.security.router import router as security_router
-from apihub.subscription.helpers import record_usage
-from apihub.subscription.depends import require_subscription
-from apihub.subscription.router import router as application_router
-from apihub.utils import make_key, initial_state, State
+from apihub.utils import make_key, State
 from apihub import __worker__, __version__
 
 
@@ -117,6 +119,7 @@ class ClientInfo(BaseModel):
     user: str
     api: str
     status: str
+    submission_time: str = datetime.utcnow().isoformat()
 
 
 class Extra(BaseModel):
@@ -138,9 +141,7 @@ async def async_service(
 
     key = make_key()
 
-    dct = {
-        "id": key,
-    }
+    dct: Dict[str, Any] = {}
 
     # inject form data
     dct.update(await request.form())
@@ -149,26 +150,18 @@ async def async_service(
     dct.update(request.query_params)
 
     # inject user information
-
     info = ClientInfo(
         user=username,
         api=application,
-        status="jobAccepted",
+        status="accepted",
     )
 
-    # inital result "jobAccepted"
-    initialResult = Message(content=initial_state(key), id=key)
-    initialResult.update_content(Extra(info=info))
+    accept_notification = Message(content=info.dict(), id=key)
+    get_state().write(make_topic("result"), accept_notification)
 
-    dct.update(
-        {
-            "info": info.dict(),
-        }
-    )
-
-    # write a temporary 'NotReady' result
-    get_state().write(make_topic("result"), initialResult)
-    # send job to its approporate topic
+    # send job request to its approporate topic
+    info.status = "processed"
+    dct.update(info.dict())
     get_state().write(make_topic(application), Message(content=dct, id=key))
 
     return AsyncAPIRequestResponse(success=True, key=key)
@@ -202,8 +195,24 @@ async def sync_service(service_name: str):
     # when it is ready. It will have a timeout of 30 seconds
 
 
+class ServerSettings(Settings):
+    port: int = 5000
+    log_level: str = "debug"
+    reload: bool = True
+
+
 def main():
-    uvicorn.run("server:api", host="0.0.0.0", port=8000, log_level="debug", reload=True)
+    import uvicorn
+
+    settings = ServerSettings()
+    settings.parse_args(args=sys.argv)
+    uvicorn.run(
+        "server:api",
+        host="0.0.0.0",
+        port=settings.port,
+        log_level=settings.log_level,
+        reload=settings.reload,
+    )
 
 
 if __name__ == "__main__":

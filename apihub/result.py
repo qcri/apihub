@@ -1,8 +1,8 @@
-import json
 import logging
+from enum import Enum
 
 import redis
-from pydantic import Field
+from pydantic import Field, BaseModel
 from prometheus_client import Counter, Histogram
 from dotenv import load_dotenv
 
@@ -18,6 +18,18 @@ logger = logging.getLogger(__name__)
 
 class RedisSettings(Settings):
     redis: str = Field("redis://localhost:6379/1", title="redis url")
+
+
+class Status(str, Enum):
+    ACCEPTED = "ACCEPTED"
+    PROCESSED = "PROCESSED"
+
+
+class Result(BaseModel):
+    user: str
+    api: str
+    status: Status
+    result: dict = dict()
 
 
 class ResultWriter(Processor):
@@ -56,24 +68,18 @@ class ResultWriter(Processor):
         print(message.output_schema)
 
     def process(self, message_content, message_id):
-        # get results from service worker, it assumes that service worker
-        # use a single update to store results from it
-        self.logger.debug(message_content)
-        info = message_content.get("info")
-        if info:
-            self.api_counter.labels(
-                api=info.get("api"), user=info.get("email"), status=info.get("status")
-            )
-        else:
-            pass
-            # self.api_counter.labels(
-            #     api=info.get("api"), user=info.get("email"), status="resultReady"
-            # )
+        result = Result.parse_obj(message_content)
+        if result.status == Status.PROCESSED:
+            result.result = {
+                k: message_content.get(k) for k in self.message.logs[-1].updated
+            }
+
+        self.api_counter.labels(api=result.api, user=result.user, status=result.status)
 
         if self.redis.get(message_id) is not None:
-            logger.warn("Found result with key %s, overwriting...", message_id)
+            logger.warning("Found result with key %s, overwriting...", message_id)
 
-        self.redis.set(message_id, json.dumps(message_content), ex=86400)
+        self.redis.set(message_id, result.json(), ex=86400)
         return None
 
 
