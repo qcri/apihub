@@ -6,3 +6,5 @@ env
 .python-version
 .env
 dist
+**.apihub
+test.sh

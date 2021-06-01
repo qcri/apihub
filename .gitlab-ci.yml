@@ -1,0 +1,31 @@
+variables:
+  GET_SOURCES_ATTEMPTS: 3
+
+stages:
+  - test
+  - build
+  - deploy
+
+test:
+  image: docker
+  stage: test
+  variables:
+    NAME: $CI_PROJECT_NAME
+  script:
+    - docker build -t $NAME -f Dockerfile.webapi .
+    - docker run --name $NAME -w /code $NAME pytest
+  after_script:
+    - docker stop $NAME
+    - docker rm $NAME
+    - docker rmi $NAME:latest
+
+build:
+  stage: build
+  variables:
+    NAME: $CI_PROJECT_NAME
+    TAG: $CI_COMMIT_REF_NAME
+  script:
+    - docker login $ACR_REGISTERY -u $ACR_USERNAME -p $ACR_PASSWORD
+    - docker build -t $NAME:$TAG -f Dockerfile .
+  only:
+    - tags

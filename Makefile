@@ -1,3 +1,8 @@
+.PHONY: init
+init:
+	poetry env use $(shell pyenv which python) && \
+	poetry install
+
 .PHONY: pytest
 pytest:
 	poetry run pytest -vv $(ARGS)

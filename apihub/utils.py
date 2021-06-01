@@ -1,23 +1,28 @@
 import uuid
-import datetime
+from datetime import datetime
+from typing import Dict, Any
+from enum import Enum
 
-from pydantic import Field
+from pydantic import Field, BaseModel
 import redis
 
 from pipeline import Settings, Pipeline
 
 
-def make_key():
-    return str(uuid.uuid1())
+DEFINITION = "api:definition"
 
 
-def initial_state(key):
-    state = {
-        "key": key,
-        "status": "accepted",
-        "submissionTime": datetime.datetime.utcnow().isoformat(),
-    }
-    return state
+class Status(str, Enum):
+    ACCEPTED = "ACCEPTED"
+    PROCESSED = "PROCESSED"
+
+
+class Result(BaseModel):
+    user: str
+    api: str
+    status: Status
+    submission_time: str = datetime.utcnow().isoformat()
+    result: Dict[str, Any] = dict()
 
 
 class RedisSettings(Settings):
@@ -37,3 +42,11 @@ class State:
             self.pipeline.add_destination_topic(name)
         # write message to pipeline
         self.pipeline.destination_of(name).write(message)
+
+
+def make_key():
+    return str(uuid.uuid1())
+
+
+def make_topic(service_name: str):
+    return f"api-{service_name}"

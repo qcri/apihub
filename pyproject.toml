@@ -9,6 +9,8 @@ readme = "README.rst"
 [tool.poetry.scripts]
 apihub_server = "apihub.server:main"
 apihub_result = "apihub.result:main"
+apihub_worker = "apihub.worker:main"
+apihub_cli = "apihub.cli:cli"
 
 [tool.black]
 line-length = 88
@@ -50,9 +52,8 @@ psycopg2-binary = "^2.8.6"
 SQLAlchemy = "^1.4.15"
 SQLAlchemy-Utils = "^0.37.4"
 python-multipart = "^0.0.5"
-wheel = {path = "../pipeline"}
-tanbih-pipeline = {path = "../pipeline/dist/tanbih_pipeline-0.11.8-py3-none-any.whl"}
-apihub-users = "^0.1.0"
+apihub-users = {git = "https://github.com/yifan/apihub-users"}
+pipeline = {git = "https://github.com/yifan/pipeline", rev = "develop", extras = ["redis"]}
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

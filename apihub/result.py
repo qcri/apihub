@@ -1,35 +1,15 @@
-import logging
-from enum import Enum
+import json
 
 import redis
-from pydantic import Field, BaseModel
 from prometheus_client import Counter, Histogram
 from dotenv import load_dotenv
 
-load_dotenv()
-
-from pipeline import ProcessorSettings, Processor, Settings, DescribeMessage
+from pipeline import ProcessorSettings, Processor, Command, CommandActions
+from apihub.utils import Result, Status, RedisSettings, DEFINITION
 from apihub import __worker__, __version__
 
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-
-class RedisSettings(Settings):
-    redis: str = Field("redis://localhost:6379/1", title="redis url")
-
-
-class Status(str, Enum):
-    ACCEPTED = "ACCEPTED"
-    PROCESSED = "PROCESSED"
-
-
-class Result(BaseModel):
-    user: str
-    api: str
-    status: Status
-    result: dict = dict()
+load_dotenv()
 
 
 class ResultWriter(Processor):
@@ -63,9 +43,11 @@ class ResultWriter(Processor):
         settings = RedisSettings()
         self.redis = redis.Redis.from_url(settings.redis)
 
-    def process_special_message(self, message: DescribeMessage) -> None:
-        print(message.input_schema)
-        print(message.output_schema)
+    def process_command(self, command: Command) -> None:
+        if command.action == CommandActions.Define:
+            for k, v in command.content.items():
+                self.redis.hset(DEFINITION, k, json.dumps(v))
+                self.logger.info(f"{k} definition:\n{json.dumps(v, indent=2)}")
 
     def process(self, message_content, message_id):
         result = Result.parse_obj(message_content)
@@ -77,7 +59,7 @@ class ResultWriter(Processor):
         self.api_counter.labels(api=result.api, user=result.user, status=result.status)
 
         if self.redis.get(message_id) is not None:
-            logger.warning("Found result with key %s, overwriting...", message_id)
+            self.logger.warning("Found result with key %s, overwriting...", message_id)
 
         self.redis.set(message_id, result.json(), ex=86400)
         return None

@@ -1,7 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
 
-import apihub_users.subscription.helpers
 from apihub_users.common.db_session import create_session
 from apihub_users.subscription.depends import require_subscription
 
@@ -20,9 +19,6 @@ def client(monkeypatch):
     def _record_usage(username, application, redis):
         pass
 
-    monkeypatch.setattr(
-        apihub_users.subscription.helpers, "record_usage", _record_usage
-    )
     monkeypatch.setenv("OUT_KIND", "MEM")
     from apihub.server import api, ip_rate_limited
 
@@ -46,5 +42,12 @@ def test_async_service(client):
     response = client.post(
         "/async/test",
         params={"text": "this is simple"},
+    )
+    assert response.status_code == 200
+
+
+def test_define_service(client):
+    response = client.get(
+        "/define/test",
     )
     assert response.status_code == 200

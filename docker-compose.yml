@@ -1,0 +1,90 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - internal-nw
+
+  postgres:
+    image: postgres:13-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=dbuser
+      - POSTGRES_PASSWORD=dbpass
+      - POSTGRES_DB=apidb
+    ports:
+      - "5432:5432"
+    networks:
+      - internal-nw
+
+  server:
+    image: apihub
+    command: ["apihub_server"]
+    #command: ["apihub_users_init"]
+    #command: ["apihub_users_deinit"]
+    ports:
+      - "5000:5000"
+    environment:
+      - OUT_KIND=LREDIS
+      - OUT_REDIS=redis://redis:6379/1
+      - REDIS=redis://redis:6379/1
+      - DB_URI=postgresql://dbuser:dbpass@postgres/apidb
+      - USERNAME=admin
+      - PASSWORD=password
+      - EMAIL=yzhang@hbku.edu.qa
+    links:
+      - redis 
+      - posgres
+    networks:
+      - internal-nw
+      - external-nw
+
+  worker:
+    image: apihub
+    command: ["apihub_worker"]
+    environment:
+      - IN_KIND=LREDIS
+      - IN_REDIS=redis://redis:6379/1
+      - IN_TOPIC=api-test
+      - OUT_KIND=LREDIS
+      - OUT_REDIS=redis://redis:6379/1
+      - OUT_TOPIC=api-result
+      - DEBUG=TRUE
+    expose:
+      - "8000"
+    links:
+      - redis
+    depends_on:
+      - redis
+    networks:
+      - internal-nw
+
+  result:
+    image: apihub
+    command: ["apihub_result"]
+    environment:
+      - IN_KIND=LREDIS
+      - IN_REDIS=redis://redis:6379/1
+      - IN_TOPIC=api-result
+      - REDIS=redis://redis:6379/1
+      - DEBUG=TRUE
+    expose:
+      - "8000"
+    links:
+      - redis
+    depends_on:
+      - redis
+    networks:
+      - internal-nw
+
+volumes:
+  postgres_data:
+
+networks:
+  internal-nw:
+    internal: true
+  external-nw:

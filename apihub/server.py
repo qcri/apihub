@@ -1,7 +1,5 @@
 import sys
-import json
 import functools
-from datetime import datetime
 from typing import Dict, Any
 
 from fastapi import FastAPI, HTTPException, Request, Query, Depends
@@ -10,18 +8,24 @@ from pydantic import BaseModel, Field
 from fastapi_jwt_auth import AuthJWT
 from fastapi_jwt_auth.exceptions import AuthJWTException
 from dotenv import load_dotenv
-from pipeline import Message, Settings
+from pipeline import Message, Settings, Command, CommandActions, Monitor
 from apihub_users.security.depends import RateLimiter, RateLimits, require_user
 from apihub_users.security.router import router as security_router
-from apihub_users.subscription.helpers import record_usage
 from apihub_users.subscription.depends import require_subscription
 from apihub_users.subscription.router import router as application_router
 
-from apihub.utils import make_key, State
+from apihub.utils import State, make_topic, make_key, Result, Status
 from apihub import __worker__, __version__
 
 
 load_dotenv(override=False)
+
+monitor = Monitor()
+operation_counter = monitor.use_counter(
+    "APIHub",
+    "API operation counts",
+    labels=["api", "user", "operation"],
+)
 
 
 @functools.lru_cache(maxsize=None)
@@ -75,37 +79,7 @@ class AsyncAPIRequestResponse(BaseModel):
 class AsyncAPIResultResponse(BaseModel):
     success: bool = Field(title="boolean", example=True)
     key: str = Field(title="unique key", example="91cb3a68-dd59-11ea-9f2a-82527949ac01")
-    result: dict = Field(title="result")
-
-
-def make_topic(service_name: str):
-    return f"api-{service_name}"
-
-
-def get_result(key: str):
-    result = get_redis().get(key)
-    if result is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Result with this key cannot be found",
-        )
-
-    result = json.loads(result)
-
-    status = result.get("status")
-    if status == "jobAccepted":
-        raise HTTPException(
-            status_code=202,
-            detail="Result is not ready",
-        )
-    elif status == "resultReady":
-        return result
-    else:
-        # FIXME change status code
-        raise HTTPException(
-            status_code=501,
-            detail="Unexpected error happened",
-        )
+    result: Dict[str, Any] = Field(title="result")
 
 
 @api.get("/", include_in_schema=False, dependencies=[Depends(ip_rate_limited)])
@@ -115,15 +89,17 @@ async def root():
     }
 
 
-class ClientInfo(BaseModel):
-    user: str
-    api: str
-    status: str
-    submission_time: str = datetime.utcnow().isoformat()
+@api.get(
+    "/define/{application}",
+    dependencies=[Depends(ip_rate_limited)],
+)
+async def define_service(
+    application: str,
+    # username: str = Depends(require_admin),
+):
+    """ """
 
-
-class Extra(BaseModel):
-    info: ClientInfo
+    get_state().write(make_topic(application), Command(action=CommandActions.Define))
 
 
 @api.post(
@@ -135,9 +111,8 @@ async def async_service(
     application: str, request: Request, username: str = Depends(require_subscription)
 ):
     """generic handler for async api."""
-    # TODO change service_name to app_name or application
 
-    record_usage(username, application, redis=get_redis())
+    operation_counter.labels(api=application, user=username, operation="received").inc()
 
     key = make_key()
 
@@ -150,36 +125,67 @@ async def async_service(
     dct.update(request.query_params)
 
     # inject user information
-    info = ClientInfo(
+    info = Result(
         user=username,
         api=application,
-        status="accepted",
+        status=Status.ACCEPTED,
     )
 
     accept_notification = Message(content=info.dict(), id=key)
     get_state().write(make_topic("result"), accept_notification)
 
     # send job request to its approporate topic
-    info.status = "processed"
+    info.status = Status.PROCESSED
     dct.update(info.dict())
     get_state().write(make_topic(application), Message(content=dct, id=key))
+
+    operation_counter.labels(api=application, user=username, operation="accepted").inc()
 
     return AsyncAPIRequestResponse(success=True, key=key)
 
 
-@api.get("/async/{service_name}", dependencies=[Depends(ip_rate_limited)])
+@api.get("/async/{application}", dependencies=[Depends(ip_rate_limited)])
 async def async_service_result(
-    service_name: str,
+    application: str,
     key: str = Query(
         ...,
         title="unique key returned by a request",
         example="91cb3a68-dd59-11ea-9f2a-82527949ac01",
     ),
-    user=Depends(require_user),
+    username=Depends(require_user),
 ):
     """ """
 
-    result = get_result(key)
+    result = get_redis().get(key)
+    if result is None:
+        operation_counter.labels(
+            api=application, user=username, operation="result_not_found"
+        ).inc()
+        raise HTTPException(
+            status_code=404,
+            detail="Result with this key cannot be found",
+        )
+
+    result = Result.parse_raw(result)
+
+    if result.status == Status.ACCEPTED:
+        raise HTTPException(
+            status_code=202,
+            detail="Result is not ready",
+        )
+    elif result.status != Status.PROCESSED:
+        operation_counter.labels(
+            api=application, user=username, operation="error"
+        ).inc()
+        # FIXME change status code
+        raise HTTPException(
+            status_code=501,
+            detail="Unexpected error happened",
+        )
+
+    operation_counter.labels(
+        api=application, user=username, operation="result_served"
+    ).inc()
 
     return AsyncAPIResultResponse(
         success=True,
@@ -204,10 +210,12 @@ class ServerSettings(Settings):
 def main():
     import uvicorn
 
+    monitor.expose()
+
     settings = ServerSettings()
     settings.parse_args(args=sys.argv)
     uvicorn.run(
-        "server:api",
+        "apihub.server:api",
         host="0.0.0.0",
         port=settings.port,
         log_level=settings.log_level,
