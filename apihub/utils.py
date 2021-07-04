@@ -30,8 +30,8 @@ class RedisSettings(Settings):
 
 
 class State:
-    def __init__(self):
-        self.pipeline = Pipeline()
+    def __init__(self, logger):
+        self.pipeline = Pipeline(logger=logger)
         settings = RedisSettings()
         settings.parse_args(args=[])
         self.redis = redis.Redis.from_url(settings.redis)
@@ -49,4 +49,4 @@ def make_key():
 
 
 def make_topic(service_name: str):
-    return f"api-{service_name}"
+    return service_name

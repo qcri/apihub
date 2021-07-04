@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y git
 
 #RUN pip install apihub
 COPY . /code
-RUN pip install /code/dist/apihub-0.1.0-py3-none-any.whl
+RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
 
 # expose port for prometheus
 EXPOSE 8000
@@ -14,4 +14,4 @@ EXPOSE 5000
 
 ENV PORT 5000
 
-CMD ["apihub_server"]
+CMD ["poetry", "apihub_server"]

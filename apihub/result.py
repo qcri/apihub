@@ -1,10 +1,8 @@
-import json
-
 import redis
 from prometheus_client import Counter, Histogram
 from dotenv import load_dotenv
 
-from pipeline import ProcessorSettings, Processor, Command, CommandActions
+from pipeline import ProcessorSettings, Processor, Command, CommandActions, Definition
 from apihub.utils import Result, Status, RedisSettings, DEFINITION
 from apihub import __worker__, __version__
 
@@ -44,12 +42,17 @@ class ResultWriter(Processor):
         self.redis = redis.Redis.from_url(settings.redis)
 
     def process_command(self, command: Command) -> None:
+        self.logger.info("Processing COMMAND")
         if command.action == CommandActions.Define:
-            for k, v in command.content.items():
-                self.redis.hset(DEFINITION, k, json.dumps(v))
-                self.logger.info(f"{k} definition:\n{json.dumps(v, indent=2)}")
+            definition = Definition.parse_obj(command.content)
+            self.logger.info(definition)
+            self.redis.hset(DEFINITION, definition.source.topic, definition.json())
+            self.logger.info(
+                f"{definition.source.topic} definition:\n{definition.json()}"
+            )
 
     def process(self, message_content, message_id):
+        self.logger.info("Processing MESSAGE")
         result = Result.parse_obj(message_content)
         if result.status == Status.PROCESSED:
             result.result = {

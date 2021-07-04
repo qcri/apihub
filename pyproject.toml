@@ -52,7 +52,7 @@ psycopg2-binary = "^2.8.6"
 SQLAlchemy = "^1.4.15"
 SQLAlchemy-Utils = "^0.37.4"
 python-multipart = "^0.0.5"
-apihub-users = {git = "https://github.com/yifan/apihub-users"}
+apihub-users = {git = "https://github.com/yifan/apihub-users", rev = "develop"}
 pipeline = {git = "https://github.com/yifan/pipeline", rev = "develop", extras = ["redis"]}
 
 [tool.poetry.dev-dependencies]
@@ -64,6 +64,7 @@ factory-boy = "^3.2.0"
 requests = "^2.25.1"
 mypy = "^0.812"
 python-dotenv = {extras = ["cli"], version = "^0.17.1"}
+black = {version = "^21.6b0", allow-prereleases = true}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

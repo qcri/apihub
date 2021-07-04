@@ -91,7 +91,7 @@ def create_subscription(admin, limit, days, recurring, username, application):
             "username": username,
             "application": application,
             "starts_at": datetime.now(),
-            "limit": limit,
+            "credit": limit,
             "expires_at": expires_at,
             "recurring": recurring,
         }

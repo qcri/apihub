@@ -20,7 +20,7 @@
    <br />
     <p align="center">
       <a href="https://github.com/yifan/apihub">
-        <img src="https://raw.githubusercontent.com/yifan/apihub/master/images/APIHub.png" alt="Logo" width="600" height="400">
+        <img src="https://raw.githubusercontent.com/yifan/apihub/master/images/APIHub-logo.png" alt="Logo" width="200" height="100">
       </a>
 
       <h3 align="center">APIHub</h3>
@@ -89,32 +89,42 @@ About The Project
 `[Product Name Screen
 Shot][product-screenshot] <https://raw.githubusercontent.com/yifan/apihub/master/images/APIHub.png>`__
 
-Here’s a blank template to get started: **To avoid retyping too much
-info. Do a search and replace with your text editor for the following:**
-``yifan``, ``apihub``, ``yifan2019``, ``email``, ``APIHub``,
-``project_description``
+
 
 Features & TODOs
 ----------------
 
-::
 
-   [X] Security
-       [X] authenticate
-       [X] admin, manager, user
-       [X] user management
-       [X] rate limiter
-       [ ] register
-       [ ] social login
-   [ ] Subscription
-       [-] subscription
-       [-] quota
-       [X] application token
-       [-] daily usage record in redis
-   [ ] Async/sync API calls
-       [ ] api worker reports input/output: describe
-       [X] generic worker deployment 
-       [ ] auto scaler for api workers
+|check| Security
+
+    |check| authenticate
+
+    |check| admin, manager, user
+
+    |check| user management
+
+    |check| rate limiter
+
+    |check| register
+
+    |uncheck_| social login
+
+|check| Subscription
+
+    |check| subscription
+
+    |check| application token
+
+    |check| daily usage record in redis
+
+|uncheck| Async/sync API calls
+
+    |check| api worker reports input/output: describe
+
+    |check| generic worker deployment 
+
+    |uncheck| auto scaler for api workers
+
 
 Built With
 ----------
@@ -275,6 +285,22 @@ Copyright (C) 2021, Qatar Computing Research Institute, HBKU
 .. raw:: html
 
    <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
+
+.. |check| raw:: html
+   
+   <input checked=""  type="checkbox">
+
+.. |check_| raw:: html
+
+   <input checked=""  disabled="" type="checkbox">
+
+.. |uncheck| raw:: html
+
+   <input type="checkbox">
+
+.. |uncheck_| raw:: html
+
+   <input disabled="" type="checkbox">
 
 
 .. |Contributors| image:: https://img.shields.io/github/contributors/yifan/apihub.svg?style=for-the-badge

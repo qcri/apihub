@@ -1,5 +1,6 @@
 import sys
 import functools
+import logging
 from typing import Dict, Any
 
 from fastapi import FastAPI, HTTPException, Request, Query, Depends
@@ -7,14 +8,15 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from fastapi_jwt_auth import AuthJWT
 from fastapi_jwt_auth.exceptions import AuthJWTException
+from fastapi.openapi.utils import get_openapi
 from dotenv import load_dotenv
-from pipeline import Message, Settings, Command, CommandActions, Monitor
+from pipeline import Message, Settings, Command, CommandActions, Monitor, Definition
 from apihub_users.security.depends import RateLimiter, RateLimits, require_user
 from apihub_users.security.router import router as security_router
 from apihub_users.subscription.depends import require_subscription
 from apihub_users.subscription.router import router as application_router
 
-from apihub.utils import State, make_topic, make_key, Result, Status
+from apihub.utils import DEFINITION, State, make_topic, make_key, Result, Status
 from apihub import __worker__, __version__
 
 
@@ -30,7 +32,8 @@ operation_counter = monitor.use_counter(
 
 @functools.lru_cache(maxsize=None)
 def get_state():
-    return State()
+    logging.basicConfig(level=logging.DEBUG)
+    return State(logger=logging)
 
 
 def get_redis():
@@ -60,10 +63,12 @@ api = FastAPI(
 api.include_router(
     security_router,
     #     prefix='/security',
-    #     tags=['security'],
+    tags=["security"],
     dependencies=[Depends(ip_rate_limited)],
 )
-api.include_router(application_router, dependencies=[Depends(ip_rate_limited)])
+api.include_router(
+    application_router, tags=["subscription"], dependencies=[Depends(ip_rate_limited)]
+)
 
 
 @api.exception_handler(AuthJWTException)
@@ -91,6 +96,7 @@ async def root():
 
 @api.get(
     "/define/{application}",
+    include_in_schema=False,
     dependencies=[Depends(ip_rate_limited)],
 )
 async def define_service(
@@ -101,9 +107,12 @@ async def define_service(
 
     get_state().write(make_topic(application), Command(action=CommandActions.Define))
 
+    return {"define": f"application {application}"}
+
 
 @api.post(
     "/async/{application}",
+    include_in_schema=False,
     response_model=AsyncAPIRequestResponse,
     dependencies=[Depends(ip_rate_limited)],
 )
@@ -144,7 +153,11 @@ async def async_service(
     return AsyncAPIRequestResponse(success=True, key=key)
 
 
-@api.get("/async/{application}", dependencies=[Depends(ip_rate_limited)])
+@api.get(
+    "/async/{application}",
+    dependencies=[Depends(ip_rate_limited)],
+    include_in_schema=False,
+)
 async def async_service_result(
     application: str,
     key: str = Query(
@@ -194,11 +207,99 @@ async def async_service_result(
     )
 
 
-@api.post("/sync/{service_name}")
+@api.post(
+    "/sync/{service_name}",
+    include_in_schema=False,
+)
 async def sync_service(service_name: str):
     """generic synchronised api hendler"""
     # TODO synchronised service, basically it will wait and return results
     # when it is ready. It will have a timeout of 30 seconds
+
+
+def get_paths(redis=get_redis()):
+    paths = {}
+    for name, dct_str in redis.hgetall(DEFINITION).items():
+        name = name.decode("utf-8")
+        path = {}
+        definition = Definition.parse_raw(dct_str)
+        operation = {}
+        operation["tags"] = ["app"]
+        operation["summary"] = definition.description
+        operation["description"] = definition.description
+        parameters = {}
+        operation["requestBody"] = {
+            "content": {
+                "application/json": {
+                    "schema": definition.input_schema,  # ["properties"],
+                }
+            },
+            "required": True,
+        }
+        operation["responses"] = {
+            "200": {
+                "description": "successful request",
+                "status_code": 200,
+                "content": {
+                    "application/json": {"schema": AsyncAPIRequestResponse.schema()}
+                },
+            }
+        }
+        path["post"] = operation
+
+        operation = {}
+        operation["tags"] = ["app"]
+        operation["summary"] = "obtain results from previous post requests"
+        operation["description"] = definition.description
+        parameters = [
+            {
+                "name": "key",
+                "in": "query",
+                "description": "the unique key obtained from post request",
+                "required": True,
+                "type": "string",
+                "format": "string",
+            }
+        ]
+        # a strange way to sort parameters maybe
+        operation["parameters"] = list(
+            {param["name"]: param for param in parameters}.values()
+        )
+        operation["responses"] = {
+            "200": {
+                "description": "success",
+                "content": {
+                    "application/json": {
+                        "schema": definition.output_schema,
+                    }
+                },
+            }
+        }
+        path["get"] = operation
+
+        paths[f"/async/{name}"] = path
+    return paths
+
+
+def custom_openapi(app=api):
+    # if app.openapi_schema:
+    #    return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title="APIHub",
+        version="0.1.0",
+        description="API for AI",
+        routes=app.routes,
+    )
+    openapi_schema["info"]["x-logo"] = {
+        "url": "https://raw.githubusercontent.com/yifan/apihub/master/images/APIHub-logo.png"
+    }
+    openapi_schema["paths"].update(get_paths())
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+api.openapi = custom_openapi
 
 
 class ServerSettings(Settings):
