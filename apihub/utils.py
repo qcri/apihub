@@ -17,11 +17,15 @@ class Status(str, Enum):
     PROCESSED = "PROCESSED"
 
 
+def utcnow_isoformat():
+    return datetime.utcnow().isoformat()
+
+
 class Result(BaseModel):
     user: str
     api: str
     status: Status
-    submission_time: str = datetime.utcnow().isoformat()
+    submission_time: str = Field(default_factory=utcnow_isoformat)
     result: Dict[str, Any] = dict()
 
 
