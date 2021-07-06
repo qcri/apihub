@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from fastapi_jwt_auth import AuthJWT
 from fastapi_jwt_auth.exceptions import AuthJWTException
 from fastapi.openapi.utils import get_openapi
+from jsonschema import validate
 from dotenv import load_dotenv
 from pipeline import Message, Settings, Command, CommandActions, Monitor, Definition
 from apihub_users.security.depends import RateLimiter, RateLimits, require_user
@@ -127,11 +128,13 @@ async def async_service(
 
     dct: Dict[str, Any] = {}
 
-    # inject form data
-    dct.update(await request.form())
+    dct.update(await request.json())
 
     # inject query parameters
     dct.update(request.query_params)
+
+    input_schema = get_app_input_schema(application)
+    validate(instance=dct, schema=input_schema)
 
     # inject user information
     info = Result(
@@ -217,16 +220,32 @@ async def sync_service(service_name: str):
     # when it is ready. It will have a timeout of 30 seconds
 
 
+def get_app_input_schema(application, redis=get_redis()):
+    # FIXME error handling
+    definition_bytes = redis.hget(DEFINITION, application)
+    definition = Definition.parse_raw(definition_bytes)
+    return definition.input_schema
+
+
 def get_paths(redis=get_redis()):
     paths = {}
     for name, dct_str in redis.hgetall(DEFINITION).items():
         name = name.decode("utf-8")
         path = {}
+
+        # security = {
+        #     "type": "http",
+        #     "description": f"need token obtained from /token/{name}",
+        #     "scheme": "bearer",
+        #     "bearerFormat": "JWT",
+        # }
+
         definition = Definition.parse_raw(dct_str)
         operation = {}
         operation["tags"] = ["app"]
         operation["summary"] = definition.description
         operation["description"] = definition.description
+        # operation["security"] = security
         parameters = {}
         operation["requestBody"] = {
             "content": {
@@ -251,6 +270,7 @@ def get_paths(redis=get_redis()):
         operation["tags"] = ["app"]
         operation["summary"] = "obtain results from previous post requests"
         operation["description"] = definition.description
+        # operation["security"] = security
         parameters = [
             {
                 "name": "key",

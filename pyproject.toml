@@ -54,6 +54,7 @@ SQLAlchemy-Utils = "^0.37.4"
 python-multipart = "^0.0.5"
 apihub-users = {git = "https://github.com/yifan/apihub-users", rev = "develop"}
 pipeline = {git = "https://github.com/yifan/pipeline", rev = "develop", extras = ["redis"]}
+jsonschema = "^3.2.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

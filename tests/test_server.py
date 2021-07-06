@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 
 from apihub_users.common.db_session import create_session
 from apihub_users.subscription.depends import require_subscription
@@ -20,6 +21,7 @@ def client(monkeypatch):
         pass
 
     monkeypatch.setenv("OUT_KIND", "MEM")
+
     from apihub.server import api, ip_rate_limited
 
     api.dependency_overrides[create_session] = _create_session
@@ -38,10 +40,20 @@ def test_slash(client):
     # assert len(list(filter(lambda x: x == 200, status_codes))) == 10
 
 
-def test_async_service(client):
+def test_async_service_json(client, monkeypatch):
+    class Input(BaseModel):
+        text: str
+        probability: float
+
+    def _get_app_input_schema(application, redis=None):
+        return Input.schema()
+
+    import apihub.server
+
+    monkeypatch.setattr(apihub.server, "get_app_input_schema", _get_app_input_schema)
+
     response = client.post(
-        "/async/test",
-        params={"text": "this is simple"},
+        "/async/test", params={"text": "this is simple"}, json={"probability": 0.6}
     )
     assert response.status_code == 200
 
