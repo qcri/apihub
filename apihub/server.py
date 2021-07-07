@@ -149,6 +149,7 @@ async def async_service(
     # send job request to its approporate topic
     info.status = Status.PROCESSED
     dct.update(info.dict())
+
     get_state().write(make_topic(application), Message(content=dct, id=key))
 
     operation_counter.labels(api=application, user=username, operation="accepted").inc()
@@ -205,7 +206,7 @@ async def async_service_result(
 
     return AsyncAPIResultResponse(
         success=True,
-        key=result.get("key"),
+        key=key,
         result=result,
     )
 
