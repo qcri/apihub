@@ -17,7 +17,15 @@ from apihub_users.security.router import router as security_router
 from apihub_users.subscription.depends import require_subscription
 from apihub_users.subscription.router import router as application_router
 
-from apihub.utils import DEFINITION, State, make_topic, make_key, Result, Status
+from apihub.utils import (
+    DEFINITION,
+    State,
+    make_topic,
+    make_key,
+    Result,
+    Status,
+    metrics_router,
+)
 from apihub import __worker__, __version__
 
 
@@ -326,22 +334,27 @@ api.openapi = custom_openapi
 class ServerSettings(Settings):
     port: int = 5000
     log_level: str = "debug"
-    reload: bool = True
+    monitoring: bool = False
+    reload: bool = False
+    debug: bool = False
 
 
 def main():
     import uvicorn
 
-    monitor.expose()
-
     settings = ServerSettings()
     settings.parse_args(args=sys.argv)
+
+    if settings.monitoring:
+        api.include_router(metrics_router)
+
     uvicorn.run(
-        "apihub.server:api",
+        api,
         host="0.0.0.0",
         port=settings.port,
         log_level=settings.log_level,
         reload=settings.reload,
+        debug=settings.debug,
     )
 
 

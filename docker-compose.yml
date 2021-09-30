@@ -21,8 +21,30 @@ services:
     networks:
       - internal-nw
 
+  # server-init:
+  #   image: apihub-users
+  #   command: ["apihub_users_init"]
+  #   # command: ["apihub_users_deinit", "&&", "apihub_users_init"]
+  #   environment:
+  #     - OUT_KIND=LREDIS
+  #     - OUT_REDIS=redis://redis:6379/1
+  #     - REDIS=redis://redis:6379/1
+  #     - DB_URI=postgresql://dbuser:dbpass@postgres/apidb
+  #     - USERNAME=admin
+  #     - PASSWORD=password
+  #     - EMAIL=yzhang@hbku.edu.qa
+  #   links:
+  #     - redis 
+  #     - posgres
+  #   networks:
+  #     - internal-nw
+  #     - external-nw
+
   server:
     image: apihub
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     command: ["apihub_server"]
     #command: ["apihub_users_init"]
     #command: ["apihub_users_deinit"]
@@ -31,11 +53,9 @@ services:
     environment:
       - OUT_KIND=LREDIS
       - OUT_REDIS=redis://redis:6379/1
+      - OUT_NAMESPACE=api
       - REDIS=redis://redis:6379/1
       - DB_URI=postgresql://dbuser:dbpass@postgres/apidb
-      - USERNAME=admin
-      - PASSWORD=password
-      - EMAIL=yzhang@hbku.edu.qa
     links:
       - redis 
       - posgres
@@ -43,16 +63,17 @@ services:
       - internal-nw
       - external-nw
 
-  worker:
-    image: apihub
-    command: ["apihub_worker"]
+  frame:
+    image: mediaframeworker
     environment:
       - IN_KIND=LREDIS
+      - IN_NAMESPACE=api
+      - IN_TOPIC=frame
       - IN_REDIS=redis://redis:6379/1
-      - IN_TOPIC=api-test
       - OUT_KIND=LREDIS
+      - OUT_NAMESPACE=api
+      - OUT_TOPIC=result
       - OUT_REDIS=redis://redis:6379/1
-      - OUT_TOPIC=api-result
       - DEBUG=TRUE
     expose:
       - "8000"
@@ -65,11 +86,15 @@ services:
 
   result:
     image: apihub
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     command: ["apihub_result"]
     environment:
       - IN_KIND=LREDIS
+      - IN_NAMESPACE=api
+      - IN_TOPIC=result
       - IN_REDIS=redis://redis:6379/1
-      - IN_TOPIC=api-result
       - REDIS=redis://redis:6379/1
       - DEBUG=TRUE
     expose:

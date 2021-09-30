@@ -1,6 +1,6 @@
 [[package]]
 name = "apihub-users"
-version = "0.1.1-alpha.5"
+version = "0.1.1-alpha.8"
 description = "user and subscription management for APIHub"
 category = "main"
 optional = false
@@ -22,7 +22,7 @@ uvicorn = "^0.13.4"
 type = "git"
 url = "https://github.com/yifan/apihub-users"
 reference = "develop"
-resolved_reference = "0e103098cf2d4fee3113c6108b07d9387e08de4e"
+resolved_reference = "be972b2e283b4e5ddc97f638c4e5a9926d465350"
 
 [[package]]
 name = "appdirs"
@@ -342,7 +342,7 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
 name = "pipeline"
-version = "0.11.16"
+version = "0.11.17"
 description = "data streaming on top of popular message queues"
 category = "main"
 optional = false
@@ -365,7 +365,7 @@ pulsar = ["pulsar-client (>=2.5.0,<2.6.0)"]
 type = "git"
 url = "https://github.com/yifan/pipeline"
 reference = "develop"
-resolved_reference = "9ec050a25a07807e03eb55189792892d4dcd4fc8"
+resolved_reference = "a09eee27fe6da138760602adb21348a2adbb27bd"
 
 [[package]]
 name = "pluggy"
