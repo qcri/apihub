@@ -77,15 +77,25 @@ class Client:
         else:
             raise Exception(response.json())
 
-    def refresh_application_token(self, application: str) -> None:
+    def refresh_application_token(
+        self, application: str, username: str, expires_days: int
+    ) -> None:
         # TODO exceptions
+        params = {}
+        if username:
+            params["username"] = username
+        if expires_days:
+            params["expires_days"] = expires_days
+
         response = requests.get(
             self._make_url(f"token/{application}"),
             headers={"Authorization": f"Bearer {self.token}"},
+            params=params,
         )
         if response.status_code == 200:
             print(response.json())
             self.applications[application] = response.json()["token"]
+            return response.json()["token"]
         else:
             print(response.text)
             print(response.json())
