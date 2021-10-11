@@ -62,9 +62,16 @@ class Client:
             headers={"Authorization": f"Bearer {self.token}"},
             json=UserCreate.parse_obj(user).dict(),
         )
-        print(response.json())
         if response.status_code == 200:
-            print(response.json())
+            return True
+
+    def get_users_by_role(self, role):
+        response = requests.get(
+            self._make_url(f"users/{role}"),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        if response.status_code == 200:
+            return response.json()
 
     def create_subscription(self, subscription):
         response = requests.post(

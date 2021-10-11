@@ -75,11 +75,15 @@ def refresh_token(admin, manager, username, expires, application):
 
 @cli.command()
 @click.option("--admin", "-a", type=str, default="", help="admin username")
-def list_users(admin):
+def list_users(admin, role):
     client = Client.load_state(filename=f"{admin}.apihub")
     if client.token is None:
         click.echo("You need to login first")
         sys.exit(1)
+
+    users = client.get_users_by_role(role)
+    for user in users:
+        print(user)
 
 
 @cli.command()
