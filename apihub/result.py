@@ -3,7 +3,7 @@ from prometheus_client import Counter, Histogram
 from dotenv import load_dotenv
 
 from pipeline import ProcessorSettings, Processor, Command, CommandActions, Definition
-from apihub.utils import Result, Status, RedisSettings, DEFINITION
+from apihub.utils import Result, Status, RedisSettings, DefinitionManager
 from apihub import __worker__, __version__
 
 
@@ -26,13 +26,13 @@ class ResultWriter(Processor):
         labelnames=["api"],
     )
 
-    def __init__(self) -> None:
+    def __init__(self, debug=True, monitoring=True) -> None:
         settings = ProcessorSettings(
-            name=__worker__ + " ResultWriter",
+            name=__worker__ + " Result Handler",
             version=__version__,
             description="write results to redis",
-            debug=True,
-            monitoring=True,
+            debug=debug,
+            monitoring=monitoring,
         )
 
         super().__init__(settings, input_class=dict, output_class=None)
@@ -40,15 +40,16 @@ class ResultWriter(Processor):
     def setup(self) -> None:
         settings = RedisSettings()
         self.redis = redis.Redis.from_url(settings.redis)
+        self.definitions = DefinitionManager(redis=self.redis)
 
     def process_command(self, command: Command) -> None:
         self.logger.info("Processing COMMAND")
         if command.action == CommandActions.Define:
             definition = Definition.parse_obj(command.content)
-            self.logger.info(definition)
-            self.redis.hset(DEFINITION, definition.source.topic, definition.json())
+            self.logger.info(definition.source.topic)
+            self.definitions.add(definition)
             self.logger.info(
-                f"{definition.source.topic} definition:\n{definition.json()}"
+                f"{definition.source.topic} definition:\n{definition.json(indent=2)}"
             )
 
     def process(self, message_content, message_id):

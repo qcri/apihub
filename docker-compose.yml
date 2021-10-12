@@ -41,11 +41,11 @@ services:
   #     - external-nw
 
   server:
-    image: apihub
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    command: ["apihub_server"]
+    #image: apihub
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["poetry", "run", "python", "apihub/run_server.py"]
     #command: ["apihub_users_init"]
     #command: ["apihub_users_deinit"]
     ports:
@@ -56,15 +56,20 @@ services:
       - OUT_NAMESPACE=api
       - REDIS=redis://redis:6379/1
       - DB_URI=postgresql://dbuser:dbpass@postgres/apidb
+      - DEBUG=TRUE
+      - RELOAD=TRUE
+      - PYTHONPATH=/app
     links:
       - redis 
       - posgres
     networks:
       - internal-nw
       - external-nw
+    volumes:
+      - .:/app
 
   frame:
-    image: mediaframeworker
+    image: sentproppy
     environment:
       - IN_KIND=LREDIS
       - IN_NAMESPACE=api
@@ -83,13 +88,12 @@ services:
       - redis
     networks:
       - internal-nw
+      - external-nw
 
   result:
-    image: apihub
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    command: ["apihub_result"]
+    # image: apihub
+    build: .
+    command: ["poetry", "run", "python", "apihub/result.py"]
     environment:
       - IN_KIND=LREDIS
       - IN_NAMESPACE=api
@@ -97,6 +101,7 @@ services:
       - IN_REDIS=redis://redis:6379/1
       - REDIS=redis://redis:6379/1
       - DEBUG=TRUE
+      - PYTHONPATH=/app
     expose:
       - "8000"
     links:
@@ -105,6 +110,8 @@ services:
       - redis
     networks:
       - internal-nw
+    volumes:
+      - .:/app
 
 volumes:
   postgres_data:

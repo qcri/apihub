@@ -11,14 +11,14 @@ from fastapi_jwt_auth.exceptions import AuthJWTException
 from fastapi.openapi.utils import get_openapi
 from jsonschema import validate
 from dotenv import load_dotenv
-from pipeline import Message, Settings, Command, CommandActions, Monitor, Definition
+from pipeline import Message, Settings, Command, CommandActions, Monitor
 from apihub_users.security.depends import RateLimiter, RateLimits, require_user
 from apihub_users.security.router import router as security_router
 from apihub_users.subscription.depends import require_subscription
 from apihub_users.subscription.router import router as application_router
 
 from apihub.utils import (
-    DEFINITION,
+    DefinitionManager,
     State,
     make_topic,
     make_key,
@@ -47,6 +47,11 @@ def get_state():
 
 def get_redis():
     return get_state().redis
+
+
+@functools.lru_cache(maxsize=None)
+def get_definition_manager():
+    return DefinitionManager(redis=get_redis())
 
 
 ip_rate_limited = RateLimiter(
@@ -104,6 +109,17 @@ async def root():
 
 
 @api.get(
+    "/delete/definitions",
+    include_in_schema=False,
+    dependencies=[Depends(ip_rate_limited)],
+)
+async def delete_definitions():
+    """ """
+    get_definition_manager().delete_all()
+    return {"success": True}
+
+
+@api.get(
     "/define/{application}",
     include_in_schema=False,
     dependencies=[Depends(ip_rate_limited)],
@@ -141,8 +157,8 @@ async def async_service(
     # inject query parameters
     dct.update(request.query_params)
 
-    input_schema = get_app_input_schema(application)
-    validate(instance=dct, schema=input_schema)
+    definition = get_definition_manager().get(application)
+    validate(instance=dct, schema=definition.input_schema)
 
     # inject user information
     info = Result(
@@ -229,17 +245,18 @@ async def sync_service(service_name: str):
     # when it is ready. It will have a timeout of 30 seconds
 
 
-def get_app_input_schema(application, redis=get_redis()):
-    # FIXME error handling
-    definition_bytes = redis.hget(DEFINITION, application)
-    definition = Definition.parse_raw(definition_bytes)
-    return definition.input_schema
+def extract_components(schema, components):
+    definitions = schema.get("definitions")
+    if definitions:
+        del schema["definitions"]
+        components.update(definitions)
 
 
 def get_paths(redis=get_redis()):
     paths = {}
-    for name, dct_str in redis.hgetall(DEFINITION).items():
-        name = name.decode("utf-8")
+    components_schemas = {}
+    definitions = DefinitionManager(redis=redis)
+    for name, definition in definitions.get_all():
         path = {}
 
         # security = {
@@ -249,13 +266,16 @@ def get_paths(redis=get_redis()):
         #     "bearerFormat": "JWT",
         # }
 
-        definition = Definition.parse_raw(dct_str)
+        logging.basicConfig(level=logging.INFO)
         operation = {}
         operation["tags"] = ["app"]
         operation["summary"] = definition.description
         operation["description"] = definition.description
         # operation["security"] = security
         parameters = {}
+
+        extract_components(definition.input_schema, components_schemas)
+
         operation["requestBody"] = {
             "content": {
                 "application/json": {
@@ -294,6 +314,9 @@ def get_paths(redis=get_redis()):
         operation["parameters"] = list(
             {param["name"]: param for param in parameters}.values()
         )
+
+        extract_components(definition.output_schema, components_schemas)
+
         operation["responses"] = {
             "200": {
                 "description": "success",
@@ -307,7 +330,7 @@ def get_paths(redis=get_redis()):
         path["get"] = operation
 
         paths[f"/async/{name}"] = path
-    return paths
+    return paths, components_schemas
 
 
 def custom_openapi(app=api):
@@ -323,7 +346,9 @@ def custom_openapi(app=api):
     openapi_schema["info"]["x-logo"] = {
         "url": "https://raw.githubusercontent.com/yifan/apihub/master/images/APIHub-logo.png"
     }
-    openapi_schema["paths"].update(get_paths())
+    paths, components_schemas = get_paths()
+    openapi_schema["paths"].update(paths)
+    openapi_schema["components"]["schemas"].update(components_schemas)
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
@@ -349,7 +374,7 @@ def main():
         api.include_router(metrics_router)
 
     uvicorn.run(
-        api,
+        "apihub.server:api",
         host="0.0.0.0",
         port=settings.port,
         log_level=settings.log_level,

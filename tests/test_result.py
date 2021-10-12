@@ -13,3 +13,18 @@ class TestResultWriter:
             writer.start()
         except Exception:
             pytest.fail("worker raised exception")
+
+    def test_command(self, monkeypatch):
+        monkeypatch.setenv("IN_KIND", "FILE")
+        monkeypatch.setenv("MONITORING", "FILE")
+        monkeypatch.setenv("IN_FILENAME", "tests/fixtures/result_command.json")
+        from apihub.result import ResultWriter
+
+        try:
+            writer = ResultWriter(debug=False, monitoring=False)
+            writer.parse_args()
+            writer.start()
+        except Exception:
+            pytest.fail("worker raised exception")
+
+        assert False

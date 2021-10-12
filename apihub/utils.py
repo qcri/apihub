@@ -19,7 +19,7 @@ from starlette.responses import Response
 from pydantic import Field, BaseModel
 import redis
 
-from pipeline import Settings, Pipeline
+from pipeline import Settings, Pipeline, Definition
 
 
 DEFINITION = "api:definition"
@@ -93,3 +93,31 @@ def metrics_route(request: Request):
         "Content-Length": str(len(data)),
     }
     return Response(data, status_code=status.HTTP_200_OK, headers=response_headers)
+
+
+class DefinitionManager(object):
+    """manages definition obtained from workers"""
+
+    def __init__(self, redis):
+        self.redis = redis
+
+    def add(self, definition):
+        self.redis.hset(DEFINITION, definition.source.topic, definition.json())
+
+    def delete(self, topic):
+        self.redis.hdel(DEFINITION, topic)
+
+    def delete_all(self):
+        for topic in self.redis.hkeys(DEFINITION):
+            self.delete(topic)
+
+    def get(self, topic):
+        definition_json = self.redis.hget(DEFINITION, topic)
+        definition = Definition.parse_raw(definition_json)
+        return definition
+
+    def get_all(self):
+        for topic, definition_json in self.redis.hgetall(DEFINITION).items():
+            topic = topic.decode("utf-8")
+            definition = Definition.parse_raw(definition_json)
+            yield topic, definition
