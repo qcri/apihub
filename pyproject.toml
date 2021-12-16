@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "apihub"
-version = "0.1.0"
+version = "0.1.2"
 description = "a API gateway on top of Redis"
 license = "MIT"
 authors = ["Yifan Zhang <freqyifan@gmail.com>"]
@@ -43,8 +43,7 @@ doctest_optionflags= "NORMALIZE_WHITESPACE ELLIPSIS"
 [tool.poetry.dependencies]
 python = "^3.7"
 prometheus-client = ">=0.7.0,<0.8.0"
-python-dotenv = "^0.17.1"
-redis = "^3.5.3"
+redis = "^4.0.0"
 fastapi = "^0.65.1"
 uvicorn = "^0.13.4"
 fastapi-jwt-auth = "^0.5.0"
@@ -53,7 +52,9 @@ SQLAlchemy = "^1.4.15"
 SQLAlchemy-Utils = "^0.37.4"
 python-multipart = "^0.0.5"
 apihub-users = {git = "https://github.com/yifan/apihub-users", rev = "develop"}
-pipeline = {git = "https://github.com/yifan/pipeline", rev = "develop", extras = ["redis"]}
+#apihub-users = {path = "../apihub-users", develop = true}
+pipeline = {git = "https://github.com/yifan/pipeline", rev = "master", extras = ["redis"]}
+#pipeline = {path = "../pipeline", develop = true}
 jsonschema = "^3.2.0"
 
 [tool.poetry.dev-dependencies]
@@ -64,7 +65,6 @@ pytest-dotenv = "^0.5.2"
 factory-boy = "^3.2.0"
 requests = "^2.25.1"
 mypy = "^0.812"
-python-dotenv = {extras = ["cli"], version = "^0.17.1"}
 black = {version = "^21.6b0", allow-prereleases = true}
 
 [build-system]

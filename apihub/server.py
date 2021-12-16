@@ -1,6 +1,7 @@
 import sys
 import functools
 import logging
+import logging.config
 from typing import Dict, Any
 
 from fastapi import FastAPI, HTTPException, Request, Query, Depends
@@ -31,6 +32,10 @@ from apihub import __worker__, __version__
 
 load_dotenv(override=False)
 
+
+# logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
+
+
 monitor = Monitor()
 operation_counter = monitor.use_counter(
     "APIHub",
@@ -41,8 +46,11 @@ operation_counter = monitor.use_counter(
 
 @functools.lru_cache(maxsize=None)
 def get_state():
-    logging.basicConfig(level=logging.DEBUG)
-    return State(logger=logging)
+    logger = logging.getLogger("pipeline")
+    logger.setLevel(logging.INFO)
+    logger.addHandler(logging.StreamHandler())
+    logger.info("Setting up logger")
+    return State(logger=logger)
 
 
 def get_redis():
@@ -373,11 +381,57 @@ def main():
     if settings.monitoring:
         api.include_router(metrics_router)
 
+    log_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "()": "uvicorn.logging.DefaultFormatter",
+                "fmt": "%(levelprefix)s %(message)s",
+                "use_colors": None,
+            },
+            "access": {
+                "()": "uvicorn.logging.AccessFormatter",
+                "fmt": '%(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s',
+            },
+        },
+        "handlers": {
+            "default": {
+                "formatter": "default",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stderr",
+            },
+            "access": {
+                "formatter": "access",
+                "class": "logging.StreamHandler",
+                "stream": "ext://sys.stdout",
+            },
+        },
+        "loggers": {
+            "uvicorn": {"handlers": ["default"], "level": "INFO"},
+            "uvicorn.error": {
+                "level": "INFO",
+                "handlers": ["default"],
+                "propagate": True,
+            },
+            "uvicorn.access": {
+                "handlers": ["access"],
+                "level": "INFO",
+                "propagate": False,
+            },
+        },
+    }
+
+    log_config["loggers"]["pipeline"] = {"handlers": ["default"], "level": "INFO"}
+
     uvicorn.run(
         "apihub.server:api",
         host="0.0.0.0",
         port=settings.port,
         log_level=settings.log_level,
+        log_config=log_config,
+        # no_access_log=True,
+        # use_colors=True,
         reload=settings.reload,
         debug=settings.debug,
     )

@@ -1,9 +1,11 @@
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
+from typing import Dict, Any
 
 from apihub_users.common.db_session import create_session
 from apihub_users.subscription.depends import require_subscription
+from apihub.utils import make_topic
 
 
 @pytest.fixture(scope="function")
@@ -41,25 +43,81 @@ def test_slash(client):
 
 
 def test_async_service_json(client, monkeypatch):
+    monkeypatch.setenv("IN_KIND", "MEM")
+    monkeypatch.setenv("IN_NAMESPACE", "namespace")
+    monkeypatch.setenv("OUT_KIND", "MEM")
+    monkeypatch.setenv("OUT_NAMESPACE", "namespace")
+    import apihub.server
+
+    class DummyDefinition(BaseModel):
+        input_schema: Dict[str, Any]
+
     class Input(BaseModel):
         text: str
         probability: float
 
-    def _get_app_input_schema(application, redis=None):
-        return Input.schema()
+    def _get_definition_manager():
+        class DummyDefinitionManager:
+            def get(self, application):
+                return DummyDefinition(input_schema=Input.schema())
 
-    import apihub.server
+        return DummyDefinitionManager()
 
-    monkeypatch.setattr(apihub.server, "get_app_input_schema", _get_app_input_schema)
+    monkeypatch.setattr(
+        apihub.server, "get_definition_manager", _get_definition_manager
+    )
 
     response = client.post(
         "/async/test", params={"text": "this is simple"}, json={"probability": 0.6}
     )
     assert response.status_code == 200
 
+    assert (
+        len(
+            apihub.server.get_state()
+            .pipeline.destination_of(make_topic("test"))
+            .results
+        )
+        == 1
+    )
+
+    assert (
+        apihub.server.get_state().pipeline.destination_of(make_topic("test")).topic
+        == "test"
+    )
+
 
 def test_define_service(client):
     response = client.get(
         "/define/test",
     )
+    assert response.status_code == 200
+
+
+def test_redoc(client, monkeypatch):
+    monkeypatch.setenv("IN_KIND", "MEM")
+    monkeypatch.setenv("IN_NAMESPACE", "namespace")
+    monkeypatch.setenv("OUT_KIND", "MEM")
+    monkeypatch.setenv("OUT_NAMESPACE", "namespace")
+    import apihub.server
+
+    class DummyDefinition(BaseModel):
+        input_schema: Dict[str, Any]
+
+    class Input(BaseModel):
+        text: str
+        probability: float
+
+    def _get_definition_manager():
+        class DummyDefinitionManager:
+            def get(self, application):
+                return DummyDefinition(input_schema=Input.schema())
+
+        return DummyDefinitionManager()
+
+    monkeypatch.setattr(
+        apihub.server, "get_definition_manager", _get_definition_manager
+    )
+
+    response = client.get("/redoc")
     assert response.status_code == 200

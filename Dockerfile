@@ -12,7 +12,7 @@ EXPOSE 8000
 # expose port for server
 EXPOSE 5000
 
-ENV PORT 5000
+ENV PORT=5000 PYTHONPATH=/app
 
 WORKDIR /app
 

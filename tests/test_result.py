@@ -26,5 +26,3 @@ class TestResultWriter:
             writer.start()
         except Exception:
             pytest.fail("worker raised exception")
-
-        assert False

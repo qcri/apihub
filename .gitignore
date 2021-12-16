@@ -5,6 +5,7 @@ env
 *.json
 .python-version
 .env
+.venv
 dist
 **.apihub
-test.sh
+**/.DS_Store
