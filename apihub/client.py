@@ -73,11 +73,11 @@ class Client:
         if response.status_code == 200:
             return response.json()
 
-    def create_subscription(self, subscription):
+    def create_subscription(self, subscription: SubscriptionIn):
         response = requests.post(
             self._make_url("subscription"),
             headers={"Authorization": f"Bearer {self.token}"},
-            json=SubscriptionIn.parse_obj(subscription).dict(),
+            data=subscription.json(),
         )
         if response.status_code == 200:
             return True
@@ -100,6 +100,7 @@ class Client:
             params=params,
         )
         if response.status_code == 200:
+            print(response.text)
             print(response.json())
             self.applications[application] = response.json()["token"]
             return response.json()["token"]
