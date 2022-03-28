@@ -13,7 +13,7 @@ from fastapi.openapi.utils import get_openapi
 from jsonschema import validate
 from dotenv import load_dotenv
 from pipeline import Message, Settings, Command, CommandActions, Monitor
-from apihub_users.security.depends import RateLimiter, RateLimits, require_user
+from apihub_users.security.depends import RateLimiter, RateLimits
 from apihub_users.security.router import router as security_router
 from apihub_users.subscription.depends import require_subscription
 from apihub_users.subscription.router import router as application_router
@@ -201,7 +201,7 @@ async def async_service_result(
         title="unique key returned by a request",
         example="91cb3a68-dd59-11ea-9f2a-82527949ac01",
     ),
-    username=Depends(require_user),
+    username=Depends(require_subscription),
 ):
     """ """
 
