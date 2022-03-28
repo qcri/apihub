@@ -5,7 +5,7 @@ import fileinput
 from datetime import datetime, timedelta
 
 try:
-    import click
+    import typer
 except ImportError:
     sys.stderr.write('Please install "apihub[cli] to install cli option"')
     sys.exit(1)
@@ -15,41 +15,35 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from apihub.client import Client
+from apihub_users.subscription.router import SubscriptionIn
 
 
-@click.group()
-def cli():
-    pass
+cli = typer.Typer()
 
 
 def try_load_state(username):
     client = Client.load_state(filename=f"{username}.apihub")
     if client.token is None:
-        click.echo("You need to login first")
+        typer.echo("You need to login first")
         sys.exit(1)
     return client
 
 
 @cli.command()
-@click.option(
-    "--endpoint", "-e", type=str, default="http://localhost:5000", help="endpoint"
-)
-@click.argument("username", nargs=1)
-@click.argument("password", nargs=1)
-def login(endpoint, username, password):
+def login(username: str, password: str, endpoint: str = "http://localhost:5000"):
     client = Client({"endpoint": endpoint})
     client.authenticate(username=username, password=password)
     client.save_state(filename=f"{username}.apihub")
 
 
 @cli.command()
-@click.option("--admin", "-a", type=str, default="", help="manager username")
-@click.option("--manager", "-m", type=str, default="", help="manager username")
-@click.option("--username", "-u", type=str, default="", help="username")
-@click.option("--expires", "-e", type=int, default=1, help="expires time in days")
-@click.argument("application", nargs=1)
-def refresh_token(admin, manager, username, expires, application):
-
+def refresh_token(
+    application: str,
+    admin: str = "",
+    manager: str = "",
+    username: str = "",
+    expires: int = 1,
+):
     if admin:
         admin_client = Client.load_state(filename=f"{admin}.apihub")
     elif manager:
@@ -60,25 +54,24 @@ def refresh_token(admin, manager, username, expires, application):
 
     if admin_client:
         if admin_client.token is None:
-            click.echo("You need to login first")
+            cli.echo("You need to login first")
             sys.exit(1)
         token = admin_client.refresh_application_token(application, username, expires)
         client.applications[application] = token
     else:
         if client.token is None:
-            click.echo("You need to login first")
+            cli.echo("You need to login first")
             sys.exit(1)
 
-        client.refresh_application_token(application)
+        client.refresh_application_token(application, username, expires)
     client.save_state(filename=f"{username}.apihub")
 
 
 @cli.command()
-@click.option("--admin", "-a", type=str, default="", help="admin username")
-def list_users(admin, role):
+def list_users(role: str, admin: str = ""):
     client = Client.load_state(filename=f"{admin}.apihub")
     if client.token is None:
-        click.echo("You need to login first")
+        cli.echo("You need to login first")
         sys.exit(1)
 
     users = client.get_users_by_role(role)
@@ -87,17 +80,12 @@ def list_users(admin, role):
 
 
 @cli.command()
-@click.option("--admin", "-a", type=str, default="", help="admin username")
-@click.option(
-    "--role", "-r", type=str, default="user", help="role [admin, manager, user]"
-)
-@click.argument("username", nargs=1)
-@click.argument("password", nargs=1)
-@click.argument("email", nargs=1)
-def create_user(admin, role, username, password, email):
+def create_user(
+    username: str, password: str, email: str, admin: str = "", role: str = "user"
+):
     client = Client.load_state(filename=f"{admin}.apihub")
     if client.token is None:
-        click.echo("You need to login first")
+        cli.echo("You need to login first")
         sys.exit(1)
 
     client.create_user(
@@ -111,37 +99,34 @@ def create_user(admin, role, username, password, email):
 
 
 @cli.command()
-@click.option("--admin", "-a", type=str, default="", help="admin username")
-@click.option("--limit", "-l", type=int, default=1000, help="limit")
-@click.option("--days", "-d", type=int, default=None, help="subscription valid days")
-@click.option(
-    "--recurring", "-r", type=bool, default=False, help="recurring subscription"
-)
-@click.argument("username", nargs=1)
-@click.argument("application", nargs=1)
-def create_subscription(admin, limit, days, recurring, username, application):
+def create_subscription(
+    username: str,
+    application: str,
+    admin: str = "",
+    limit: int = 1000,
+    days: int = 0,
+    recurring: bool = False,
+):
     client = Client.load_state(filename=f"{admin}.apihub")
     if client.token is None:
-        click.echo("You need to login first")
+        cli.echo("You need to login first")
         sys.exit(1)
 
     expires_at = datetime.now() + timedelta(days=days) if days else None
     client.create_subscription(
-        {
-            "username": username,
-            "application": application,
-            "starts_at": datetime.now(),
-            "credit": limit,
-            "expires_at": expires_at,
-            "recurring": recurring,
-        }
+        SubscriptionIn(
+            username=username,
+            application=application,
+            starts_at=datetime.now(),
+            credit=limit,
+            expires_at=expires_at,
+            recurring=recurring,
+        )
     )
 
 
 @cli.command()
-@click.option("--username", "-u", type=str, default="", help="username")
-@click.argument("application", nargs=1)
-def post_request(username, application):
+def post_request(application: str, username: str):
     client = try_load_state(username)
 
     data = json.loads(sys.stdin.read())
@@ -150,21 +135,18 @@ def post_request(username, application):
     return
 
     MARKER = "# Please write body in json above"
-    message = click.edit("\n\n" + MARKER)
+    message = cli.edit("\n\n" + MARKER)
     if message is not None:
         data = json.loads(message.split(MARKER, 1)[0])
         response = client.async_request(application, data)
         print(response)
     else:
-        click.echo("input cannot be empty")
+        cli.echo("input cannot be empty")
         sys.exit(1)
 
 
 @cli.command()
-@click.option("--username", "-u", type=str, default="", help="username")
-@click.argument("application", nargs=1)
-@click.argument("key", nargs=1)
-def fetch_result(username, application, key):
+def fetch_result(application: str, key: str, username: str = ""):
     client = try_load_state(username)
 
     response = client.async_result(application, key)
@@ -172,9 +154,7 @@ def fetch_result(username, application, key):
 
 
 @cli.command()
-@click.option("--username", "-u", type=str, default="", help="username")
-@click.argument("application", nargs=1)
-def batch_request(username, application):
+def batch_request(application: str, username: str = ""):
     client = try_load_state(username)
     for i, line in enumerate(fileinput.input(files=[])):
         data = json.loads(line)
