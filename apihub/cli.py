@@ -1,6 +1,7 @@
 import sys
 import json
 import time
+import asyncio
 import fileinput
 from datetime import datetime, timedelta
 
@@ -154,26 +155,73 @@ def fetch_result(application: str, key: str, username: str = ""):
 
 
 @cli.command()
-def batch_request(application: str, username: str = ""):
+def batch_request(
+    username: str, application: str, filename: str = "", parallel: int = 10
+):
+    jobs = []
     client = try_load_state(username)
-    for i, line in enumerate(fileinput.input(files=[])):
+    files = [filename] if filename else []
+    for i, line in enumerate(fileinput.input(files=files)):
         data = json.loads(line)
         response = client.async_request(application, data)
         if "success" not in response or not response["success"]:
             print(f"Failed on input line {i}, request failed", file=sys.stderr)
+            print(response)
             sys.exit(1)
 
         key = response["key"]
-
-        for n in range(10):
-            response = client.async_result(application, key)
-            if response["success"]:
-                data.updates(response["result"])
-                print(json.dumps(response["result"]))
-                break
-            time.sleep(1)
+        if len(jobs) < parallel:
+            jobs.append((i, data, key))
         else:
-            print(f"Failed on input line {i}, retry failed", file=sys.stderr)
+            unfinished_jobs = []
+            for i, data, key in jobs:
+                response = client.async_result(application, key)
+                if "success" in response and response["success"]:
+                    data.update(response["result"])
+                    print(i, json.dumps(response["result"]))
+                else:
+                    print(i, response)
+                    unfinished_jobs.append((i, data, key))
+
+            jobs = unfinished_jobs
+
+            time.sleep(1)
+
+    while len(jobs) > 0:
+        unfinished_jobs = []
+        for i, data, key in jobs:
+            response = client.async_result(application, key)
+            if "success" in response and response["success"]:
+                data.update(response["result"])
+                print(i, json.dumps(response["result"]))
+            else:
+                print(i, response)
+                unfinished_jobs.append((i, data, key))
+
+        jobs = unfinished_jobs
+
+
+@cli.command()
+def batch_sync_request(
+    username: str, application: str, filename: str = "", parallel: int = 10
+):
+    queue = asyncio.Queue()
+
+    async def request_routine(client, application, data):
+        response = await client.sync_request(application, data)
+        if "success" in response and response["success"]:
+            data.update(response["result"])
+            print(i, json.dumps(response["result"]))
+        else:
+            print(i, response)
+
+    client = try_load_state(username)
+    files = [filename] if filename else []
+    for i, line in enumerate(fileinput.input(files=files)):
+        data = json.loads(line)
+
+        queue.put(request_routine(client, application, data))
+        time.sleep(1)
 
 
 if __name__ == "__main__":

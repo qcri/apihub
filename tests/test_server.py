@@ -1,3 +1,5 @@
+from unittest import mock
+
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
@@ -70,6 +72,7 @@ def test_async_service_json(client, monkeypatch):
     response = client.post(
         "/async/test", params={"text": "this is simple"}, json={"probability": 0.6}
     )
+
     assert response.status_code == 200
 
     assert (
@@ -85,6 +88,56 @@ def test_async_service_json(client, monkeypatch):
         apihub.server.get_state().pipeline.destination_of(make_topic("test")).topic
         == "test"
     )
+
+
+def test_sync_service_json(client, monkeypatch):
+    monkeypatch.setenv("IN_KIND", "MEM")
+    monkeypatch.setenv("IN_NAMESPACE", "namespace")
+    monkeypatch.setenv("OUT_KIND", "MEM")
+    monkeypatch.setenv("OUT_NAMESPACE", "namespace")
+    import apihub.server
+
+    class DummyDefinition(BaseModel):
+        input_schema: Dict[str, Any]
+
+    class Input(BaseModel):
+        text: str
+        probability: float
+
+    def _get_definition_manager():
+        class DummyDefinitionManager:
+            def get(self, application):
+                return DummyDefinition(input_schema=Input.schema())
+
+        return DummyDefinitionManager()
+
+    _get_redis = mock.MagicMock()
+    _get_redis.return_value.get.return_value = apihub.server.Result(
+        user="sync",
+        api="test",
+        status=apihub.server.Status.PROCESSED,
+    ).json()
+
+    monkeypatch.setattr(
+        apihub.server, "get_definition_manager", _get_definition_manager
+    )
+    monkeypatch.setattr(apihub.server, "get_redis", _get_redis)
+
+    response = client.post(
+        "/sync/test", params={"text": "this is simple"}, json={"probability": 0.6}
+    )
+
+    assert _get_redis.called
+
+    assert response.status_code == 200
+
+    assert (
+        apihub.server.get_state().pipeline.destination_of(make_topic("test")).topic
+        == "test"
+    )
+
+    assert response.json()["result"]["user"] == "sync"
+    assert response.json()["result"]["result"] == {}
 
 
 def test_define_service(client):

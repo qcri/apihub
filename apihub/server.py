@@ -1,4 +1,6 @@
 import sys
+import time
+import asyncio
 import functools
 import logging
 import logging.config
@@ -98,12 +100,12 @@ def authjwt_exception_handler(request: Request, exc: AuthJWTException):
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
 
-class AsyncAPIRequestResponse(BaseModel):
+class APIRequestResponse(BaseModel):
     success: bool = Field(title="boolean", example=True)
     key: str = Field(title="unique key", example="91cb3a68-dd59-11ea-9f2a-82527949ac01")
 
 
-class AsyncAPIResultResponse(BaseModel):
+class APIResultResponse(BaseModel):
     success: bool = Field(title="boolean", example=True)
     key: str = Field(title="unique key", example="91cb3a68-dd59-11ea-9f2a-82527949ac01")
     result: Dict[str, Any] = Field(title="result")
@@ -143,18 +145,8 @@ async def define_service(
     return {"define": f"application {application}"}
 
 
-@api.post(
-    "/async/{application}",
-    include_in_schema=False,
-    response_model=AsyncAPIRequestResponse,
-    dependencies=[Depends(ip_rate_limited)],
-)
-async def async_service(
-    application: str, request: Request, username: str = Depends(require_subscription)
-):
-    """generic handler for async api."""
-
-    operation_counter.labels(api=application, user=username, operation="received").inc()
+async def make_request(username: str, application: str, request: Request):
+    """Make request to application"""
 
     key = make_key()
 
@@ -183,10 +175,59 @@ async def async_service(
     dct.update(info.dict())
 
     get_state().write(make_topic(application), Message(content=dct, id=key))
+    return key
+
+
+def fetch_result(username: str, application: str, key: str):
+    """fetch result"""
+    result = get_redis().get(key)
+    if result is None:
+        operation_counter.labels(
+            api=application, user=username, operation="result_not_found"
+        ).inc()
+        raise HTTPException(
+            status_code=404,
+            detail="Result with this key cannot be found",
+        )
+
+    result = Result.parse_raw(result)
+
+    if result.status == Status.ACCEPTED:
+        raise HTTPException(
+            status_code=202,
+            detail="Result is not ready",
+        )
+    elif result.status != Status.PROCESSED:
+        operation_counter.labels(
+            api=application, user=username, operation="error"
+        ).inc()
+        # FIXME change status code
+        raise HTTPException(
+            status_code=501,
+            detail="Unexpected error happened",
+        )
+
+    return result
+
+
+@api.post(
+    "/async/{application}",
+    include_in_schema=False,
+    response_model=APIRequestResponse,
+    dependencies=[Depends(ip_rate_limited)],
+)
+async def async_service(
+    application: str, request: Request, username: str = Depends(require_subscription)
+):
+    """generic handler for async api."""
+
+    operation_counter.labels(api=application, user=username, operation="received").inc()
+
+    key = await make_request(username, application, request)
 
     operation_counter.labels(api=application, user=username, operation="accepted").inc()
 
-    return AsyncAPIRequestResponse(success=True, key=key)
+    return APIRequestResponse(success=True, key=key)
 
 
 @api.get(
@@ -236,7 +277,7 @@ async def async_service_result(
         api=application, user=username, operation="result_served"
     ).inc()
 
-    return AsyncAPIResultResponse(
+    return APIResultResponse(
         success=True,
         key=key,
         result=result,
@@ -244,13 +285,60 @@ async def async_service_result(
 
 
 @api.post(
-    "/sync/{service_name}",
+    "/sync/{application}",
     include_in_schema=False,
 )
-async def sync_service(service_name: str):
+async def sync_service(
+    application: str,
+    request: Request,
+    username=Depends(require_subscription),
+):
     """generic synchronised api hendler"""
-    # TODO synchronised service, basically it will wait and return results
-    # when it is ready. It will have a timeout of 30 seconds
+    operation_counter.labels(api=application, user=username, operation="received").inc()
+
+    key = await make_request(username, application, request)
+
+    result = None
+    start_time = time.time()
+
+    while time.time() - start_time < 50:
+
+        await asyncio.sleep(0.01)
+
+        result = get_redis().get(key)
+
+        if result is None:
+            continue
+
+        result = Result.parse_raw(result)
+
+        if result.status != Status.ACCEPTED:
+            break
+
+    # TODO accepted but didn't return in time
+
+    if result is None:
+        raise HTTPException(
+            status_code=501,
+            detail=f"Timed out for key {key}",
+        )
+
+    if result.status != Status.PROCESSED:
+        # FIXME change status code
+        raise HTTPException(
+            status_code=501,
+            detail="Unexpected error happened",
+        )
+
+    operation_counter.labels(
+        api=application, user=username, operation="result_served"
+    ).inc()
+
+    return APIResultResponse(
+        success=True,
+        key=key,
+        result=result,
+    )
 
 
 def extract_components(schema, components):
@@ -297,7 +385,7 @@ def get_paths(redis=get_redis()):
                 "description": "successful request",
                 "status_code": 200,
                 "content": {
-                    "application/json": {"schema": AsyncAPIRequestResponse.schema()}
+                    "application/json": {"schema": APIRequestResponse.schema()}
                 },
             }
         }

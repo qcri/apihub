@@ -139,3 +139,16 @@ class Client:
             return response.json()
         else:
             return response.json()
+
+    def sync_request(self, application: str, data: dict):
+        response = requests.post(
+            self._make_url(f"sync/{application}"),
+            headers={
+                "Authorization": f"Bearer {self.applications[application]}",
+            },
+            json=data,
+        )
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return response.json()
