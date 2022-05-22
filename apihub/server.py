@@ -315,8 +315,6 @@ async def sync_service(
         if result.status != Status.ACCEPTED:
             break
 
-    # TODO accepted but didn't return in time
-
     if result is None:
         raise HTTPException(
             status_code=501,
@@ -337,7 +335,7 @@ async def sync_service(
     return APIResultResponse(
         success=True,
         key=key,
-        result=result,
+        result=result.result,
     )
 
 
@@ -351,23 +349,29 @@ def extract_components(schema, components):
 def get_paths(redis=get_redis()):
     paths = {}
     components_schemas = {}
+    security_schemes = {}
     definitions = DefinitionManager(redis=redis)
+
     for name, definition in definitions.get_all():
+
+        security_schemes[f"api_{name}"] = {
+            "type": "http",
+            "description": f"need token obtained from /token/{name}",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+
+        security = [{f"api_{name}": []}]
+
+        # asynchronized API
         path = {}
 
-        # security = {
-        #     "type": "http",
-        #     "description": f"need token obtained from /token/{name}",
-        #     "scheme": "bearer",
-        #     "bearerFormat": "JWT",
-        # }
-
-        logging.basicConfig(level=logging.INFO)
         operation = {}
         operation["tags"] = ["app"]
         operation["summary"] = definition.description
         operation["description"] = definition.description
-        # operation["security"] = security
+        operation["security"] = security
+
         parameters = {}
 
         extract_components(definition.input_schema, components_schemas)
@@ -380,6 +384,7 @@ def get_paths(redis=get_redis()):
             },
             "required": True,
         }
+
         operation["responses"] = {
             "200": {
                 "description": "successful request",
@@ -395,7 +400,8 @@ def get_paths(redis=get_redis()):
         operation["tags"] = ["app"]
         operation["summary"] = "obtain results from previous post requests"
         operation["description"] = definition.description
-        # operation["security"] = security
+        operation["security"] = security
+
         parameters = [
             {
                 "name": "key",
@@ -423,10 +429,46 @@ def get_paths(redis=get_redis()):
                 },
             }
         }
+
         path["get"] = operation
 
         paths[f"/async/{name}"] = path
-    return paths, components_schemas
+
+        # synchronized API
+        path = {}
+        operation = {}
+        operation["tags"] = ["app"]
+        operation["summary"] = definition.description
+        operation["description"] = definition.description
+        operation["security"] = security
+
+        parameters = {}
+
+        operation["requestBody"] = {
+            "content": {
+                "application/json": {
+                    "schema": definition.input_schema,  # ["properties"],
+                }
+            },
+            "required": True,
+        }
+
+        operation["responses"] = {
+            "200": {
+                "description": "success",
+                "content": {
+                    "application/json": {
+                        "schema": definition.output_schema,
+                    }
+                },
+            }
+        }
+
+        path["post"] = operation
+
+        paths[f"/sync/{name}"] = path
+
+    return paths, components_schemas, security_schemes
 
 
 def custom_openapi(app=api):
@@ -442,9 +484,11 @@ def custom_openapi(app=api):
     openapi_schema["info"]["x-logo"] = {
         "url": "https://raw.githubusercontent.com/yifan/apihub/master/images/APIHub-logo.png"
     }
-    paths, components_schemas = get_paths()
+    paths, components_schemas, security_schemes = get_paths()
     openapi_schema["paths"].update(paths)
     openapi_schema["components"]["schemas"].update(components_schemas)
+    openapi_schema["components"]["securitySchemes"] = security_schemes
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
