@@ -21,24 +21,26 @@ services:
     networks:
       - internal-nw
 
-  # server-init:
-  #   image: apihub-users
-  #   command: ["apihub_users_init"]
-  #   # command: ["apihub_users_deinit", "&&", "apihub_users_init"]
-  #   environment:
-  #     - OUT_KIND=LREDIS
-  #     - OUT_REDIS=redis://redis:6379/1
-  #     - REDIS=redis://redis:6379/1
-  #     - DB_URI=postgresql://dbuser:dbpass@postgres/apidb
-  #     - USERNAME=admin
-  #     - PASSWORD=password
-  #     - EMAIL=yzhang@hbku.edu.qa
-  #   links:
-  #     - redis 
-  #     - posgres
-  #   networks:
-  #     - internal-nw
-  #     - external-nw
+  server-init:
+    #image: apihub
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["apihub_users_init"]
+    # command: ["apihub_users_deinit", "&&", "apihub_users_init"]
+    environment:
+      - OUT_KIND=LREDIS
+      - OUT_REDIS=redis://redis:6379/1
+      - REDIS=redis://redis:6379/1
+      - DB_URI=postgresql://dbuser:dbpass@postgres/apidb
+      - USERNAME=admin
+      - PASSWORD=password
+      - EMAIL=yzhang@hbku.edu.qa
+    links:
+      - redis 
+      - postgres
+    networks:
+      - internal-nw
 
   server:
     #image: apihub
@@ -61,7 +63,7 @@ services:
       - PYTHONPATH=/app
     links:
       - redis 
-      - posgres
+      - postgres
     networks:
       - internal-nw
       - external-nw
@@ -69,7 +71,7 @@ services:
       - .:/app
 
   frame:
-    image: sentproppy
+    image: meganews.azurecr.io/meganews/sentproppy:v0.3.3-fix1
     environment:
       - IN_KIND=LREDIS
       - IN_NAMESPACE=api

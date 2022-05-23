@@ -38,6 +38,11 @@ server:
 	PYTHONPATH=../pipeline/src poetry run python apihub/server.py \
 		--out-kind LREDIS --debug
 
+.PHONY: image
+TAG ?= latest
+image:
+	docker build -t apihub:$(TAG) -f ./Dockerfile .
+
 .PHONY: pre-commit
 pre-commit: 
 	pre-commit run --all-files
