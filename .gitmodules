@@ -1,0 +1,3 @@
+[submodule "apihub-users"]
+	path = apihub-users
+	url = https://github.com/AhmedMahdy14/apihub-users
