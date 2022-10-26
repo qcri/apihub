@@ -1,4 +1,7 @@
-import sys, time, functools, logging
+import sys
+import time
+import functools
+import logging
 from typing import Dict, Any
 
 from fastapi import FastAPI, HTTPException, Request, Query, Depends, BackgroundTasks
@@ -116,7 +119,11 @@ async def define_service(
     dependencies=[Depends(ip_rate_limited)],
 )
 async def async_service(
-    application: str, request: Request, background_tasks: BackgroundTasks, session=Depends(create_session), username: str = Depends(require_subscription)
+    application: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    session=Depends(create_session),
+    username: str = Depends(require_subscription),
 ):
     """generic handler for async api."""
     t1 = time.time()
@@ -148,14 +155,16 @@ async def async_service(
     get_state().write(make_topic(application), Message(content=dct, id=key))
 
     operation_counter.labels(api=application, user=username, operation="accepted").inc()
-    kwargs = {"username":username,
-              "application": application,
-              "ip_address": request.client.host,
-              "request": f"/async/{application}",
-              "latency": round(time.time() - t1, 2),
-              "key": key,
-              "result": info.dict(),
-              "status": "accepted"}
+    kwargs = {
+        "username": username,
+        "application": application,
+        "ip_address": request.client.host,
+        "request": f"/async/{application}",
+        "latency": round(time.time() - t1, 2),
+        "key": key,
+        "result": info.dict(),
+        "status": "accepted",
+    }
 
     background_tasks.add_task(create_activity_log, session, **kwargs)
 
