@@ -1,9 +1,7 @@
-import sys
-import functools
-import logging
+import sys, time, functools, logging
 from typing import Dict, Any
 
-from fastapi import FastAPI, HTTPException, Request, Query, Depends
+from fastapi import FastAPI, HTTPException, Request, Query, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from fastapi_jwt_auth import AuthJWT
@@ -15,7 +13,8 @@ from apihub_users.security.depends import RateLimiter, RateLimits, require_user
 from apihub_users.security.router import router as security_router
 from apihub_users.subscription.depends import require_subscription
 from apihub_users.subscription.router import router as application_router
-
+from apihub_users.usage.helpers import create_activity_log
+from apihub_users.common.db_session import create_session
 from apihub.utils import DEFINITION, State, make_topic, make_key, Result, Status
 from apihub import __worker__, __version__
 
@@ -117,10 +116,10 @@ async def define_service(
     dependencies=[Depends(ip_rate_limited)],
 )
 async def async_service(
-    application: str, request: Request, username: str = Depends(require_subscription)
+    application: str, request: Request, background_tasks: BackgroundTasks, session=Depends(create_session), username: str = Depends(require_subscription)
 ):
     """generic handler for async api."""
-
+    t1 = time.time()
     operation_counter.labels(api=application, user=username, operation="received").inc()
 
     key = make_key()
@@ -149,6 +148,16 @@ async def async_service(
     get_state().write(make_topic(application), Message(content=dct, id=key))
 
     operation_counter.labels(api=application, user=username, operation="accepted").inc()
+    kwargs = {"username":username,
+              "application": application,
+              "ip_address": request.client.host,
+              "request": f"/async/{application}",
+              "latency": round(time.time() - t1, 2),
+              "key": key,
+              "result": info.dict(),
+              "status": "accepted"}
+
+    background_tasks.add_task(create_activity_log, session, **kwargs)
 
     return AsyncAPIRequestResponse(success=True, key=key)
 

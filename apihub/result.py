@@ -6,6 +6,7 @@ from pipeline import ProcessorSettings, Processor, Command, CommandActions, Defi
 from apihub.utils import Result, Status, RedisSettings, DEFINITION
 from apihub import __worker__, __version__
 
+from apihub_users.usage.models import Activity
 
 load_dotenv()
 
@@ -64,7 +65,9 @@ class ResultWriter(Processor):
         if self.redis.get(message_id) is not None:
             self.logger.warning("Found result with key %s, overwriting...", message_id)
 
-        self.redis.set(message_id, result.json(), ex=86400)
+        r = result.json()
+        self.redis.set(message_id, r, ex=86400)
+        Activity.update_activity(message_id, **{"status": "processed", "result": r})
         return None
 
 
