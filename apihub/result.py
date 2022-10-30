@@ -70,7 +70,7 @@ class ResultWriter(Processor):
         r = result.json()
         self.redis.set(message_id, r, ex=86400)
         ActivityQuery(session).update_activity(
-            message_id, **{"status": "processed", "result": r}
+            message_id, **{"status": Status.PROCESSED, "result": r}
         )
         return None
 

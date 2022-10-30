@@ -1,5 +1,4 @@
 import sys
-import time
 import functools
 import logging
 from typing import Dict, Any
@@ -16,6 +15,7 @@ from apihub_users.security.depends import RateLimiter, RateLimits, require_user
 from apihub_users.security.router import router as security_router
 from apihub_users.subscription.depends import require_subscription
 from apihub_users.subscription.router import router as application_router
+from apihub_users.subscription.queries import SubscriptionQuery
 from apihub_users.usage.helpers import create_activity_log
 from apihub_users.common.db_session import create_session
 from apihub.utils import DEFINITION, State, make_topic, make_key, Result, Status
@@ -126,7 +126,6 @@ async def async_service(
     username: str = Depends(require_subscription),
 ):
     """generic handler for async api."""
-    t1 = time.time()
     operation_counter.labels(api=application, user=username, operation="received").inc()
 
     key = make_key()
@@ -149,21 +148,27 @@ async def async_service(
     accept_notification = Message(content=info.dict(), id=key)
     get_state().write(make_topic("result"), accept_notification)
 
-    # send job request to its approporate topic
+    # send job request to its appropriate topic
     info.status = Status.PROCESSED
     dct.update(info.dict())
     get_state().write(make_topic(application), Message(content=dct, id=key))
 
     operation_counter.labels(api=application, user=username, operation="accepted").inc()
+    st = (
+        SubscriptionQuery(session)
+        .get_active_subscription(username, application)
+        .subscription_type
+    )
     kwargs = {
-        "username": username,
-        "application": application,
-        "ip_address": request.client.host,
         "request": f"/async/{application}",
-        "latency": round(time.time() - t1, 2),
-        "key": key,
-        "result": info.dict(),
-        "status": "accepted",
+        "username": username,
+        "subscription_type": st,
+        "status": Status.ACCEPTED,
+        "request_key": str(key),
+        "result": str(info.dict()),
+        "payload": dct,
+        "ip_address": str(request.client.host),
+        "latency": 0.0,
     }
 
     background_tasks.add_task(create_activity_log, session, **kwargs)

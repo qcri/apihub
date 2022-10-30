@@ -4,7 +4,7 @@ import pytest
 class TestResultWriter:
     def test_basic(self, monkeypatch):
         monkeypatch.setenv("IN_KIND", "FILE")
-        monkeypatch.setenv("IN_FILENAME", "tests/fixtures/result_input.txt")
+        monkeypatch.setenv("IN_FILENAME", "tests_apihub/fixtures/result_input.txt")
         from apihub.result import ResultWriter
 
         try:
