@@ -2,11 +2,13 @@ import redis
 from prometheus_client import Counter, Histogram
 from dotenv import load_dotenv
 
+from fastapi import Depends
 from pipeline import ProcessorSettings, Processor, Command, CommandActions, Definition
 from apihub.utils import Result, Status, RedisSettings, DEFINITION
 from apihub import __worker__, __version__
 
-from apihub_users.usage.models import Activity
+from apihub_users.common.db_session import create_session
+from apihub_users.usage.queries import ActivityQuery
 
 load_dotenv()
 
@@ -52,7 +54,7 @@ class ResultWriter(Processor):
                 f"{definition.source.topic} definition:\n{definition.json()}"
             )
 
-    def process(self, message_content, message_id):
+    def process(self, message_content, message_id, session=Depends(create_session)):
         self.logger.info("Processing MESSAGE")
         result = Result.parse_obj(message_content)
         if result.status == Status.PROCESSED:
@@ -67,7 +69,9 @@ class ResultWriter(Processor):
 
         r = result.json()
         self.redis.set(message_id, r, ex=86400)
-        Activity.update_activity(message_id, **{"status": "processed", "result": r})
+        ActivityQuery(session).update_activity(
+            message_id, **{"status": "processed", "result": r}
+        )
         return None
 
 
