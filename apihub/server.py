@@ -16,7 +16,7 @@ from apihub_users.security.router import router as security_router
 from apihub_users.subscription.depends import require_subscription
 from apihub_users.subscription.router import router as application_router
 from apihub_users.subscription.queries import SubscriptionQuery
-from apihub_users.usage.helpers import create_activity_log
+from apihub_users.usage.helpers import create_activity
 from apihub_users.common.db_session import create_session
 from apihub.utils import DEFINITION, State, make_topic, make_key, Result, Status
 from apihub import __worker__, __version__
@@ -163,16 +163,15 @@ async def async_service(
         "request": f"/async/{application}",
         "username": username,
         "subscription_type": st,
-        "status": Status.ACCEPTED,
+        "status": "accepted",
         "request_key": str(key),
         "result": str(info.dict()),
-        "payload": dct,
+        "payload": str(dct),
         "ip_address": str(request.client.host),
         "latency": 0.0,
     }
 
-    background_tasks.add_task(create_activity_log, session, **kwargs)
-
+    background_tasks.add_task(create_activity, session, **kwargs)
     return AsyncAPIRequestResponse(success=True, key=key)
 
 
