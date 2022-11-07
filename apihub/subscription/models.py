@@ -2,7 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, Column, Integer, String, DateTime, ForeignKey, Enum
 from sqlalchemy.orm import relationship
-from apihub_users.common.db_session import Base
+from apihub.common.db_session import Base
 
 from .schemas import SubscriptionTier
 

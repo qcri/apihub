@@ -7,10 +7,10 @@ import factory
 from fastapi import FastAPI, Depends
 from fastapi.testclient import TestClient
 
-from apihub_users.common.db_session import create_session
-from apihub_users.security.models import User
-from apihub_users.security.schemas import UserBase, UserType
-from apihub_users.security.depends import require_user, require_admin, require_token
+from apihub.common.db_session import create_session
+from apihub.security.models import User
+from apihub.security.schemas import UserBase, UserType
+from apihub.security.depends import require_user, require_admin, require_token
 from apihub.subscription.depends import (
     require_subscription_balance,
 )
@@ -18,7 +18,7 @@ from apihub.subscription.models import Subscription, SubscriptionTier
 from apihub.subscription.router import router, SubscriptionIn
 
 
-from apihub_users.security.helpers import hash_password
+from apihub.security.helpers import hash_password
 
 
 SALT = b64encode(

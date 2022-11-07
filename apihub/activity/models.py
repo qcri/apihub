@@ -2,7 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import Column, Integer, String, DateTime, Float, Enum
 
-from apihub_users.common.db_session import Base
+from apihub.common.db_session import Base
 from ..subscription.schemas import SubscriptionTier
 from .schemas import ActivityStatus
 

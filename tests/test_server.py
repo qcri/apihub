@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from typing import Dict, Any
 
-from apihub_users.common.db_session import create_session
+from apihub.common.db_session import create_session
 from apihub.subscription.depends import require_subscription
 from apihub.utils import make_topic
 

@@ -4,7 +4,7 @@ import factory
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from apihub_users.common.db_session import create_session
+from apihub.common.db_session import create_session
 from apihub.subscription.router import router
 from apihub.subscription.models import SubscriptionTier
 from apihub.activity.models import Activity
