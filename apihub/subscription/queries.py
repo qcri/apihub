@@ -7,7 +7,7 @@ from sqlalchemy.sql.expression import true
 from redis import Redis
 from sqlalchemy.orm import Query
 
-from apihub.common.queries import BaseQuery
+from ..common.queries import BaseQuery
 from .models import Subscription
 from .schemas import SubscriptionCreate, SubscriptionDetails
 from .helpers import get_and_reset_balance_in_cache

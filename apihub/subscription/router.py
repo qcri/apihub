@@ -5,12 +5,12 @@ from pydantic import BaseModel, BaseSettings
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_jwt_auth import AuthJWT
 
-from apihub.common.db_session import create_session
-from apihub.security.schemas import (
+from ..common.db_session import create_session
+from ..security.schemas import (
     UserBase,
-)  # TODO create a model for this UserBase
-from apihub.security.depends import require_admin, require_token
-from apihub.security.queries import UserQuery, UserException
+)
+from ..security.depends import require_admin, require_token
+from ..security.queries import UserQuery, UserException
 
 from .schemas import SubscriptionCreate
 from .queries import SubscriptionQuery, SubscriptionException

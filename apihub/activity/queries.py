@@ -3,7 +3,7 @@ import datetime
 from sqlalchemy.orm import Query
 from sqlalchemy.exc import IntegrityError, NoResultFound
 
-from apihub.common.queries import BaseQuery
+from ..common.queries import BaseQuery
 
 from .models import Activity
 from .schemas import ActivityCreate, ActivityDetails
