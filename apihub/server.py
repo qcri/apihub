@@ -15,10 +15,11 @@ from fastapi.openapi.utils import get_openapi
 from jsonschema import validate
 from dotenv import load_dotenv
 from pipeline import Message, Settings, Command, CommandActions, Monitor
-from apihub_users.security.depends import RateLimiter, RateLimits
-from apihub_users.security.router import router as security_router
-from apihub_users.subscription.depends import require_subscription
-from apihub_users.subscription.router import router as application_router
+
+from apihub.security.depends import RateLimiter, RateLimits
+from apihub.security.router import router as security_router
+from .subscription.depends import require_subscription
+from .subscription.router import router as application_router
 
 from apihub.utils import (
     DefinitionManager,
@@ -26,9 +27,9 @@ from apihub.utils import (
     make_topic,
     make_key,
     Result,
-    Status,
     metrics_router,
 )
+from .activity.schemas import ActivityStatus as Status
 from apihub import __worker__, __version__
 
 
@@ -310,6 +311,8 @@ async def sync_service(
         if result is None:
             continue
 
+        print(result)
+
         result = Result.parse_raw(result)
 
         if result.status != Status.ACCEPTED:
@@ -335,7 +338,7 @@ async def sync_service(
     return APIResultResponse(
         success=True,
         key=key,
-        result=result.result,
+        result=result,
     )
 
 
