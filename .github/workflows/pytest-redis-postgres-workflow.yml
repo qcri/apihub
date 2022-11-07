@@ -1,5 +1,10 @@
 name: poetry pytest workflow
-on: push
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
 
 jobs:
   # Label of the container job
@@ -8,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8]
+        python-version: [3.8]
 
     # Docker Hub image that `container-job` executes in
-    container: python:3.7-slim
+    container: python:3.8-slim
 
     # Service containers to run with `container-job`
     services:
@@ -71,4 +76,7 @@ jobs:
           REDIS: redis://redis:6379/1
           IN_REDIS: redis://redis:6379/1
           OUT_REDIS: redis://redis:6379/1
-          DB_URI: "postgresql://dbuser:dbpass@localhost:5432/test"
+          DB_URI: "postgresql://dbuser:dbpass@postgres:5432/test"
+          JWT_SECRET: "nosecret"
+          SECURITY_TOKEN_EXPIRES_DAYS: 1
+          SUBSCRIPTION_TOKEN_EXPIRES_DAYS: 1
