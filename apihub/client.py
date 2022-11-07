@@ -4,7 +4,7 @@ from typing import Optional, Any, Dict
 import requests
 from pydantic import BaseSettings
 
-from apihub_users.security.router import UserCreate
+from apihub.security.router import UserCreate
 from .subscription.router import SubscriptionIn
 
 

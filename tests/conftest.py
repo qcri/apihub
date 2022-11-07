@@ -1,5 +1,5 @@
 import pytest
-from apihub_users.common.db_session import Base, get_db_engine
+from apihub.common.db_session import Base, get_db_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy_utils.functions import (
     database_exists,

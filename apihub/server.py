@@ -16,8 +16,8 @@ from jsonschema import validate
 from dotenv import load_dotenv
 from pipeline import Message, Settings, Command, CommandActions, Monitor
 
-from apihub_users.security.depends import RateLimiter, RateLimits
-from apihub_users.security.router import router as security_router
+from apihub.security.depends import RateLimiter, RateLimits
+from apihub.security.router import router as security_router
 from .subscription.depends import require_subscription
 from .subscription.router import router as application_router
 
