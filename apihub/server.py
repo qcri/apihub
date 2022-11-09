@@ -1,43 +1,33 @@
 import sys
-import time
-import asyncio
 import functools
 import logging
-import logging.config
 from typing import Dict, Any
 
-from fastapi import FastAPI, HTTPException, Request, Query, Depends
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Request, Query, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
 from fastapi_jwt_auth import AuthJWT
-from fastapi_jwt_auth.exceptions import AuthJWTException
 from fastapi.openapi.utils import get_openapi
-from jsonschema import validate
 from dotenv import load_dotenv
 from pipeline import Message, Settings, Command, CommandActions, Monitor
 
-from apihub.security.depends import RateLimiter, RateLimits
+from apihub.activity.models import Activity
+from apihub.activity.schemas import ActivityStatus
+from apihub.security.depends import RateLimiter, RateLimits, require_user
 from apihub.security.router import router as security_router
-from .subscription.depends import require_subscription
-from .subscription.router import router as application_router
-
+from apihub.subscription.depends import require_subscription
+from apihub.subscription.router import router as application_router
+from apihub.subscription.schemas import SubscriptionBase
 from apihub.utils import (
-    DefinitionManager,
     State,
     make_topic,
     make_key,
     Result,
-    metrics_router,
+    Status,
+    DefinitionManager,
 )
-from .activity.schemas import ActivityStatus as Status
 from apihub import __worker__, __version__
 
-
 load_dotenv(override=False)
-
-
-# logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
-
 
 monitor = Monitor()
 operation_counter = monitor.use_counter(
@@ -49,11 +39,8 @@ operation_counter = monitor.use_counter(
 
 @functools.lru_cache(maxsize=None)
 def get_state():
-    logger = logging.getLogger("pipeline")
-    logger.setLevel(logging.INFO)
-    logger.addHandler(logging.StreamHandler())
-    logger.info("Setting up logger")
-    return State(logger=logger)
+    logging.basicConfig(level=logging.DEBUG)
+    return State(logger=logging)
 
 
 def get_redis():
@@ -96,17 +83,12 @@ api.include_router(
 )
 
 
-@api.exception_handler(AuthJWTException)
-def authjwt_exception_handler(request: Request, exc: AuthJWTException):
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
-
-
-class APIRequestResponse(BaseModel):
+class AsyncAPIRequestResponse(BaseModel):
     success: bool = Field(title="boolean", example=True)
     key: str = Field(title="unique key", example="91cb3a68-dd59-11ea-9f2a-82527949ac01")
 
 
-class APIResultResponse(BaseModel):
+class AsyncAPIResultResponse(BaseModel):
     success: bool = Field(title="boolean", example=True)
     key: str = Field(title="unique key", example="91cb3a68-dd59-11ea-9f2a-82527949ac01")
     result: Dict[str, Any] = Field(title="result")
@@ -120,24 +102,13 @@ async def root():
 
 
 @api.get(
-    "/delete/definitions",
-    include_in_schema=False,
-    dependencies=[Depends(ip_rate_limited)],
-)
-async def delete_definitions():
-    """ """
-    get_definition_manager().delete_all()
-    return {"success": True}
-
-
-@api.get(
     "/define/{application}",
     include_in_schema=False,
     dependencies=[Depends(ip_rate_limited)],
 )
 async def define_service(
-    application: str,
-    # username: str = Depends(require_admin),
+        application: str,
+        # username: str = Depends(require_admin),
 ):
     """ """
 
@@ -146,20 +117,33 @@ async def define_service(
     return {"define": f"application {application}"}
 
 
-async def make_request(username: str, application: str, request: Request):
-    """Make request to application"""
+@api.post(
+    "/async/{application}",
+    include_in_schema=False,
+    response_model=AsyncAPIRequestResponse,
+    dependencies=[Depends(ip_rate_limited)],
+)
+async def async_service(
+        request: Request,
+        background_tasks: BackgroundTasks,
+        subscription: SubscriptionBase = Depends(require_subscription),
+):
+    """generic handler for async api."""
+
+    username = subscription.username
+    tier = subscription.tier
+    application = subscription.application
+    operation_counter.labels(api=application, user=username, operation="received").inc()
 
     key = make_key()
 
     dct: Dict[str, Any] = {}
 
-    dct.update(await request.json())
+    # inject form data
+    dct.update(await request.form())
 
     # inject query parameters
     dct.update(request.query_params)
-
-    definition = get_definition_manager().get(application)
-    validate(instance=dct, schema=definition.input_schema)
 
     # inject user information
     info = Result(
@@ -171,64 +155,26 @@ async def make_request(username: str, application: str, request: Request):
     accept_notification = Message(content=info.dict(), id=key)
     get_state().write(make_topic("result"), accept_notification)
 
-    # send job request to its approporate topic
+    # send job request to its appropriate topic
     info.status = Status.PROCESSED
     dct.update(info.dict())
-
     get_state().write(make_topic(application), Message(content=dct, id=key))
-    return key
-
-
-def fetch_result(username: str, application: str, key: str):
-    """fetch result"""
-    result = get_redis().get(key)
-    if result is None:
-        operation_counter.labels(
-            api=application, user=username, operation="result_not_found"
-        ).inc()
-        raise HTTPException(
-            status_code=404,
-            detail="Result with this key cannot be found",
-        )
-
-    result = Result.parse_raw(result)
-
-    if result.status == Status.ACCEPTED:
-        raise HTTPException(
-            status_code=202,
-            detail="Result is not ready",
-        )
-    elif result.status != Status.PROCESSED:
-        operation_counter.labels(
-            api=application, user=username, operation="error"
-        ).inc()
-        # FIXME change status code
-        raise HTTPException(
-            status_code=501,
-            detail="Unexpected error happened",
-        )
-
-    return result
-
-
-@api.post(
-    "/async/{application}",
-    include_in_schema=False,
-    response_model=APIRequestResponse,
-    dependencies=[Depends(ip_rate_limited)],
-)
-async def async_service(
-    application: str, request: Request, username: str = Depends(require_subscription)
-):
-    """generic handler for async api."""
-
-    operation_counter.labels(api=application, user=username, operation="received").inc()
-
-    key = await make_request(username, application, request)
 
     operation_counter.labels(api=application, user=username, operation="accepted").inc()
+    kwargs = {
+        "request": f"/async/{application}",
+        "username": username,
+        "tier": tier,
+        "status": ActivityStatus.ACCEPTED,
+        "request_key": str(key),
+        "result": str(info.dict()),
+        "payload": str(dct),
+        "ip_address": str(request.client.host),
+        "latency": 0.0,
+    }
 
-    return APIRequestResponse(success=True, key=key)
+    background_tasks.add_task(Activity.create_activity_helper, **kwargs)
+    return AsyncAPIRequestResponse(success=True, key=key)
 
 
 @api.get(
@@ -237,13 +183,13 @@ async def async_service(
     include_in_schema=False,
 )
 async def async_service_result(
-    application: str,
-    key: str = Query(
-        ...,
-        title="unique key returned by a request",
-        example="91cb3a68-dd59-11ea-9f2a-82527949ac01",
-    ),
-    username=Depends(require_subscription),
+        application: str,
+        key: str = Query(
+            ...,
+            title="unique key returned by a request",
+            example="91cb3a68-dd59-11ea-9f2a-82527949ac01",
+        ),
+        username=Depends(require_user),
 ):
     """ """
 
@@ -278,9 +224,9 @@ async def async_service_result(
         api=application, user=username, operation="result_served"
     ).inc()
 
-    return APIResultResponse(
+    return AsyncAPIResultResponse(
         success=True,
-        key=key,
+        key=result.get("key"),
         result=result,
     )
 
@@ -289,59 +235,6 @@ async def async_service_result(
     "/sync/{application}",
     include_in_schema=False,
 )
-async def sync_service(
-    application: str,
-    request: Request,
-    username=Depends(require_subscription),
-):
-    """generic synchronised api hendler"""
-    operation_counter.labels(api=application, user=username, operation="received").inc()
-
-    key = await make_request(username, application, request)
-
-    result = None
-    start_time = time.time()
-
-    while time.time() - start_time < 50:
-
-        await asyncio.sleep(0.01)
-
-        result = get_redis().get(key)
-
-        if result is None:
-            continue
-
-        print(result)
-
-        result = Result.parse_raw(result)
-
-        if result.status != Status.ACCEPTED:
-            break
-
-    if result is None:
-        raise HTTPException(
-            status_code=501,
-            detail=f"Timed out for key {key}",
-        )
-
-    if result.status != Status.PROCESSED:
-        # FIXME change status code
-        raise HTTPException(
-            status_code=501,
-            detail="Unexpected error happened",
-        )
-
-    operation_counter.labels(
-        api=application, user=username, operation="result_served"
-    ).inc()
-
-    return APIResultResponse(
-        success=True,
-        key=key,
-        result=result,
-    )
-
-
 def extract_components(schema, components):
     definitions = schema.get("definitions")
     if definitions:
@@ -356,7 +249,6 @@ def get_paths(redis=get_redis()):
     definitions = DefinitionManager(redis=redis)
 
     for name, definition in definitions.get_all():
-
         security_schemes[f"api_{name}"] = {
             "type": "http",
             "description": f"need token obtained from /token/{name}",
@@ -369,13 +261,8 @@ def get_paths(redis=get_redis()):
         # asynchronized API
         path = {}
 
-        operation = {}
-        operation["tags"] = ["app"]
-        operation["summary"] = definition.description
-        operation["description"] = definition.description
-        operation["security"] = security
-
-        parameters = {}
+        operation = {"tags": ["app"], "summary": definition.description, "description": definition.description,
+                     "security": security}
 
         extract_components(definition.input_schema, components_schemas)
 
@@ -388,22 +275,10 @@ def get_paths(redis=get_redis()):
             "required": True,
         }
 
-        operation["responses"] = {
-            "200": {
-                "description": "successful request",
-                "status_code": 200,
-                "content": {
-                    "application/json": {"schema": APIRequestResponse.schema()}
-                },
-            }
-        }
         path["post"] = operation
 
-        operation = {}
-        operation["tags"] = ["app"]
-        operation["summary"] = "obtain results from previous post requests"
-        operation["description"] = definition.description
-        operation["security"] = security
+        operation = {"tags": ["app"], "summary": "obtain results from previous post requests",
+                     "description": definition.description, "security": security}
 
         parameters = [
             {
@@ -439,33 +314,24 @@ def get_paths(redis=get_redis()):
 
         # synchronized API
         path = {}
-        operation = {}
-        operation["tags"] = ["app"]
-        operation["summary"] = definition.description
-        operation["description"] = definition.description
-        operation["security"] = security
-
-        parameters = {}
-
-        operation["requestBody"] = {
-            "content": {
-                "application/json": {
-                    "schema": definition.input_schema,  # ["properties"],
-                }
-            },
-            "required": True,
-        }
-
-        operation["responses"] = {
-            "200": {
-                "description": "success",
+        operation = {"tags": ["app"], "summary": definition.description, "description": definition.description,
+                     "security": security, "requestBody": {
                 "content": {
                     "application/json": {
-                        "schema": definition.output_schema,
+                        "schema": definition.input_schema,  # ["properties"],
                     }
                 },
-            }
-        }
+                "required": True,
+            }, "responses": {
+                "200": {
+                    "description": "success",
+                    "content": {
+                        "application/json": {
+                            "schema": definition.output_schema,
+                        }
+                    },
+                }
+            }}
 
         path["post"] = operation
 
@@ -502,73 +368,22 @@ api.openapi = custom_openapi
 class ServerSettings(Settings):
     port: int = 5000
     log_level: str = "debug"
-    monitoring: bool = False
-    reload: bool = False
-    debug: bool = False
+    reload: bool = True
 
 
 def main():
     import uvicorn
 
+    monitor.expose()
+
     settings = ServerSettings()
     settings.parse_args(args=sys.argv)
-
-    if settings.monitoring:
-        api.include_router(metrics_router)
-
-    log_config = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "default": {
-                "()": "uvicorn.logging.DefaultFormatter",
-                "fmt": "%(levelprefix)s %(message)s",
-                "use_colors": None,
-            },
-            "access": {
-                "()": "uvicorn.logging.AccessFormatter",
-                "fmt": '%(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s',
-            },
-        },
-        "handlers": {
-            "default": {
-                "formatter": "default",
-                "class": "logging.StreamHandler",
-                "stream": "ext://sys.stderr",
-            },
-            "access": {
-                "formatter": "access",
-                "class": "logging.StreamHandler",
-                "stream": "ext://sys.stdout",
-            },
-        },
-        "loggers": {
-            "uvicorn": {"handlers": ["default"], "level": "INFO"},
-            "uvicorn.error": {
-                "level": "INFO",
-                "handlers": ["default"],
-                "propagate": True,
-            },
-            "uvicorn.access": {
-                "handlers": ["access"],
-                "level": "INFO",
-                "propagate": False,
-            },
-        },
-    }
-
-    log_config["loggers"]["pipeline"] = {"handlers": ["default"], "level": "INFO"}
-
     uvicorn.run(
         "apihub.server:api",
         host="0.0.0.0",
         port=settings.port,
         log_level=settings.log_level,
-        log_config=log_config,
-        # no_access_log=True,
-        # use_colors=True,
         reload=settings.reload,
-        debug=settings.debug,
     )
 
 
