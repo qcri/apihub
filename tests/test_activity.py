@@ -18,11 +18,11 @@ class ActivityFactory(factory.alchemy.SQLAlchemyModelFactory):
 
     id = factory.Sequence(int)
     created_at = factory.LazyFunction(datetime.now)
-    request = "/async/app1"
+    request = factory.Sequence(lambda n: f"app{n}")
     username = factory.Sequence(lambda n: f"tester{n}")
     tier = SubscriptionTier.TRIAL
     status = ActivityStatus.PROCESSED
-    request_key = "123"
+    request_key = factory.Sequence(lambda n: f"request_key{n}")
     result = ""
     payload = ""
     ip_address = ""
@@ -48,13 +48,6 @@ def client(db_session):
         request_key="app1_key",
         status=ActivityStatus.PROCESSED,
     )
-    ActivityFactory(
-        username="tester",
-        request="async/app2",
-        request_key="app2_key",
-        status=ActivityStatus.ACCEPTED,
-    )
-
     yield TestClient(app)
 
 
@@ -83,6 +76,24 @@ class TestActivity:
         assert (
             query.get_activity_by_key("async/test_key").request_key == "async/test_key"
         )
+
+    def test_create_activity_helper(self, db_session):
+        ActivityFactory._meta.sqlalchemy_session = db_session
+        ActivityFactory._meta.sqlalchemy_session_persistence = "commit"
+
+        query = ActivityQuery(db_session)
+        application = "voice2text"
+        request_key = "voice2text_key"
+        kwargs = {
+            "request": f"/async/{application}",
+            "username": "ahmed",
+            "tier": SubscriptionTier.TRIAL,
+            "status": ActivityStatus.ACCEPTED,
+            "request_key": request_key,
+            "latency": 0.0,
+        }
+        Activity.create_activity_helper(**kwargs)
+        assert query.get_activity_by_key(request_key).request_key == request_key
 
     def test_get_activity_by_key(self, client, db_session):
         query = ActivityQuery(db_session)
