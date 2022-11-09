@@ -1,4 +1,4 @@
-from unittest import mock
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -7,7 +7,7 @@ from typing import Dict, Any
 
 from apihub.common.db_session import create_session
 from apihub.subscription.depends import require_subscription
-from apihub.utils import make_topic
+from apihub.subscription.schemas import SubscriptionTier, SubscriptionBase
 
 
 @pytest.fixture(scope="function")
@@ -19,10 +19,9 @@ def client(monkeypatch):
         pass
 
     def _require_subscription():
-        return "user"
-
-    def _record_usage(username, application, redis):
-        pass
+        return SubscriptionBase(
+            username="test", tier=SubscriptionTier.TRIAL, application="app1"
+        )
 
     monkeypatch.setenv("OUT_KIND", "MEM")
 
@@ -44,100 +43,15 @@ def test_slash(client):
     # assert len(list(filter(lambda x: x == 200, status_codes))) == 10
 
 
-def test_async_service_json(client, monkeypatch):
-    monkeypatch.setenv("IN_KIND", "MEM")
-    monkeypatch.setenv("IN_NAMESPACE", "namespace")
-    monkeypatch.setenv("OUT_KIND", "MEM")
-    monkeypatch.setenv("OUT_NAMESPACE", "namespace")
-    import apihub.server
-
-    class DummyDefinition(BaseModel):
-        input_schema: Dict[str, Any]
-
-    class Input(BaseModel):
-        text: str
-        probability: float
-
-    def _get_definition_manager():
-        class DummyDefinitionManager:
-            def get(self, application):
-                return DummyDefinition(input_schema=Input.schema())
-
-        return DummyDefinitionManager()
-
-    monkeypatch.setattr(
-        apihub.server, "get_definition_manager", _get_definition_manager
-    )
-
-    response = client.post(
-        "/async/test", params={"text": "this is simple"}, json={"probability": 0.6}
-    )
-
-    assert response.status_code == 200
-
-    assert (
-        len(
-            apihub.server.get_state()
-            .pipeline.destination_of(make_topic("test"))
-            .results
+def test_async_service(client):
+    with patch("apihub.activity.models.Activity.create_activity_helper") as mock_obj:
+        application = "app1"
+        response = client.post(
+            f"/async/{application}",
+            params={"text": "this is simple"},
         )
-        == 1
-    )
-
-    assert (
-        apihub.server.get_state().pipeline.destination_of(make_topic("test")).topic
-        == "test"
-    )
-
-
-def test_sync_service_json(client, monkeypatch):
-    monkeypatch.setenv("IN_KIND", "MEM")
-    monkeypatch.setenv("IN_NAMESPACE", "namespace")
-    monkeypatch.setenv("OUT_KIND", "MEM")
-    monkeypatch.setenv("OUT_NAMESPACE", "namespace")
-    import apihub.server
-
-    class DummyDefinition(BaseModel):
-        input_schema: Dict[str, Any]
-
-    class Input(BaseModel):
-        text: str
-        probability: float
-
-    def _get_definition_manager():
-        class DummyDefinitionManager:
-            def get(self, application):
-                return DummyDefinition(input_schema=Input.schema())
-
-        return DummyDefinitionManager()
-
-    _get_redis = mock.MagicMock()
-    _get_redis.return_value.get.return_value = apihub.server.Result(
-        user="sync",
-        api="test",
-        status=apihub.server.Status.PROCESSED,
-    ).json()
-
-    monkeypatch.setattr(
-        apihub.server, "get_definition_manager", _get_definition_manager
-    )
-    monkeypatch.setattr(apihub.server, "get_redis", _get_redis)
-
-    response = client.post(
-        "/sync/test", params={"text": "this is simple"}, json={"probability": 0.6}
-    )
-
-    assert _get_redis.called
-
-    assert response.status_code == 200
-
-    assert (
-        apihub.server.get_state().pipeline.destination_of(make_topic("test")).topic
-        == "test"
-    )
-
-    assert response.json()["result"]["user"] == "sync"
-    assert response.json()["result"]["result"] == {}
+        assert response.status_code == 200
+        mock_obj.assert_called()
 
 
 def test_define_service(client):
