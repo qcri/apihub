@@ -26,13 +26,11 @@ class ResultWriter(Processor):
         labelnames=["api"],
     )
 
-    def __init__(self, debug=True, monitoring=True) -> None:
+    def __init__(self) -> None:
         settings = ProcessorSettings(
             name=__worker__ + " Result Handler",
             version=__version__,
             description="write results to redis",
-            debug=debug,
-            monitoring=monitoring,
         )
 
         super().__init__(settings, input_class=dict, output_class=None)
