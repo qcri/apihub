@@ -107,8 +107,8 @@ async def root():
     dependencies=[Depends(ip_rate_limited)],
 )
 async def define_service(
-        application: str,
-        # username: str = Depends(require_admin),
+    application: str,
+    # username: str = Depends(require_admin),
 ):
     """ """
 
@@ -124,9 +124,9 @@ async def define_service(
     dependencies=[Depends(ip_rate_limited)],
 )
 async def async_service(
-        request: Request,
-        background_tasks: BackgroundTasks,
-        subscription: SubscriptionBase = Depends(require_subscription),
+    request: Request,
+    background_tasks: BackgroundTasks,
+    subscription: SubscriptionBase = Depends(require_subscription),
 ):
     """generic handler for async api."""
 
@@ -183,13 +183,13 @@ async def async_service(
     include_in_schema=False,
 )
 async def async_service_result(
-        application: str,
-        key: str = Query(
-            ...,
-            title="unique key returned by a request",
-            example="91cb3a68-dd59-11ea-9f2a-82527949ac01",
-        ),
-        username=Depends(require_user),
+    application: str,
+    key: str = Query(
+        ...,
+        title="unique key returned by a request",
+        example="91cb3a68-dd59-11ea-9f2a-82527949ac01",
+    ),
+    username=Depends(require_user),
 ):
     """ """
 
@@ -261,8 +261,12 @@ def get_paths(redis=get_redis()):
         # asynchronized API
         path = {}
 
-        operation = {"tags": ["app"], "summary": definition.description, "description": definition.description,
-                     "security": security}
+        operation = {
+            "tags": ["app"],
+            "summary": definition.description,
+            "description": definition.description,
+            "security": security,
+        }
 
         extract_components(definition.input_schema, components_schemas)
 
@@ -277,8 +281,12 @@ def get_paths(redis=get_redis()):
 
         path["post"] = operation
 
-        operation = {"tags": ["app"], "summary": "obtain results from previous post requests",
-                     "description": definition.description, "security": security}
+        operation = {
+            "tags": ["app"],
+            "summary": "obtain results from previous post requests",
+            "description": definition.description,
+            "security": security,
+        }
 
         parameters = [
             {
@@ -314,15 +322,20 @@ def get_paths(redis=get_redis()):
 
         # synchronized API
         path = {}
-        operation = {"tags": ["app"], "summary": definition.description, "description": definition.description,
-                     "security": security, "requestBody": {
+        operation = {
+            "tags": ["app"],
+            "summary": definition.description,
+            "description": definition.description,
+            "security": security,
+            "requestBody": {
                 "content": {
                     "application/json": {
                         "schema": definition.input_schema,  # ["properties"],
                     }
                 },
                 "required": True,
-            }, "responses": {
+            },
+            "responses": {
                 "200": {
                     "description": "success",
                     "content": {
@@ -331,7 +344,8 @@ def get_paths(redis=get_redis()):
                         }
                     },
                 }
-            }}
+            },
+        }
 
         path["post"] = operation
 
