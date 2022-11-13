@@ -74,7 +74,9 @@ class ResultWriter(Processor):
         self.redis.set(message_id, r, ex=86400)
         with db_context() as session:
             pdb.set_trace()
-            ActivityQuery(session).update_activity(message_id, **{"status": ActivityStatus.PROCESSED})
+            ActivityQuery(session).update_activity(
+                message_id, **{"status": ActivityStatus.PROCESSED}
+            )
             # activity = ActivityQuery(session).get_activity_by_key(message_id)
             # activity.result = str(r)
             # activity.status = ActivityStatus.PROCESSED
