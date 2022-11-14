@@ -21,13 +21,10 @@ import redis
 
 from pipeline import Settings, Pipeline, Definition
 
+from .activity.schemas import ActivityStatus
+
 
 DEFINITION = "api:definition"
-
-
-class Status(str, Enum):
-    ACCEPTED = "ACCEPTED"
-    PROCESSED = "PROCESSED"
 
 
 def utcnow_isoformat():
@@ -37,7 +34,7 @@ def utcnow_isoformat():
 class Result(BaseModel):
     user: str
     api: str
-    status: Status
+    status: ActivityStatus
     submission_time: str = Field(default_factory=utcnow_isoformat)
     result: Dict[str, Any] = dict()
 

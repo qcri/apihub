@@ -9,6 +9,7 @@ from typing import Dict, Any
 
 from apihub.activity.models import Activity
 from apihub.activity.queries import ActivityQuery
+from apihub.activity.schemas import ActivityStatus
 from apihub.common.db_session import create_session
 from apihub.subscription.depends import require_subscription
 from apihub.subscription.schemas import SubscriptionTier, SubscriptionBase
@@ -49,20 +50,20 @@ def test_slash(client):
 
 
 def test_async_service(client, db_session):
-    application = "app1"
-    r = f"/async/{application}"
-    response = client.post(r)
-    assert response.status_code == 200
-    query = ActivityQuery(db_session)
-    assert query.get_query().filter(Activity.request == r).one().request == r
-    with patch("apihub.activity.models.Activity.create_activity_helper") as mock_obj:
+    with patch("fastapi.BackgroundTasks.add_task") as mocked_add_task:
+        application = "app1"
+        url = f"/async/{application}"
+        response = client.post(url)
+        assert response.status_code == 200
+
         application = "app2"
+        url = f"/async/{application}"
         response = client.post(
-            f"/async/{application}",
+            url,
             params={"text": "this is simple"},
         )
         assert response.status_code == 200
-        mock_obj.assert_called()
+        mocked_add_task.assert_called()
 
 
 def test_define_service(client):
