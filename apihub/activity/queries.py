@@ -21,13 +21,13 @@ class ActivityQuery(BaseQuery):
         """
         return self.session.query(Activity)
 
-    def create_activity(self, activity_create: ActivityCreate) -> None:
+    def create_activity(self, activity: ActivityCreate) -> None:
         """
         Create a new activity.
         :param activity_create: ActivityCreate object.
         :return: None
         """
-        activity = Activity(**activity_create.dict())
+        activity = Activity(**activity.dict())
         self.session.add(activity)
         try:
             self.session.commit()

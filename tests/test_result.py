@@ -13,21 +13,12 @@ from apihub.activity.queries import ActivityQuery
 from apihub.activity.schemas import ActivityStatus
 from .test_activity import ActivityFactory
 
+
 message_id = "ab7fe542-bdf2-11eb-b401-f21898b454f0"
 
 
 @pytest.fixture(scope="function")
-def client(db_session):
-    def _create_session():
-        try:
-            yield db_session
-        finally:
-            pass
-
-    app = FastAPI()
-    app.include_router(sub_router)
-    app.include_router(sec_router)
-    app.dependency_overrides[create_session] = _create_session
+def query(db_session):
     ActivityFactory._meta.sqlalchemy_session = db_session
     ActivityFactory._meta.sqlalchemy_session_persistence = "commit"
     ActivityFactory(
@@ -36,37 +27,36 @@ def client(db_session):
         request_key=message_id,
         status=ActivityStatus.ACCEPTED,
     )
-    pdb.set_trace()
-    yield TestClient(app)
+    yield ActivityQuery(db_session)
 
 
 class TestResultWriter:
-    def test_basic(self, client, db_session, monkeypatch):
-        monkeypatch.setenv("IN_KIND", "FILE")
+    def test_basic(self, db_session, query, monkeypatch):
+        activity = query.get_activity_by_key(message_id)
+        assert activity.status == ActivityStatus.ACCEPTED
+
         monkeypatch.setenv("MONITORING", "FALSE")
-        monkeypatch.setenv("IN_FILENAME", "tests/fixtures/result_input.txt")
         from apihub.result import ResultWriter
 
         try:
             writer = ResultWriter()
-            writer.parse_args()
-            assert writer.settings.monitoring is False
+            writer.parse_args("--in-kind FILE --in-filename tests/fixtures/result_input.txt --no-in-content-only".split())
+            writer.set_db_session(db_session)
             writer.start()
         except Exception:
             pytest.fail("worker raised exception")
 
-        activity = ActivityQuery(db_session).get_activity_by_key(message_id)
+        activity = query.get_activity_by_key(message_id)
         assert activity.status == ActivityStatus.PROCESSED
 
+
     def test_command(self, monkeypatch):
-        monkeypatch.setenv("IN_KIND", "FILE")
         monkeypatch.setenv("MONITORING", "FALSE")
-        monkeypatch.setenv("IN_FILENAME", "tests/fixtures/result_input.txt")
         from apihub.result import ResultWriter
 
         try:
             writer = ResultWriter()
-            writer.parse_args()
+            writer.parse_args("--in-kind FILE --in-filename tests/fixtures/command_input.txt".split())
             writer.start()
         except Exception:
             pytest.fail("worker raised exception")

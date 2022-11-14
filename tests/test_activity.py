@@ -51,66 +51,46 @@ def client(db_session):
     yield TestClient(app)
 
 
+@pytest.fixture(scope="function")
+def query(db_session):
+    yield ActivityQuery(db_session)
+
+
 class TestActivity:
-    def test_create_activity(self, db_session):
-        ActivityFactory._meta.sqlalchemy_session = db_session
-        ActivityFactory._meta.sqlalchemy_session_persistence = "commit"
-
-        query = ActivityQuery(db_session)
-        assert (
-            query.create_activity(
-                ActivityCreate(
-                    request="async/test",
-                    username="ahmed",
-                    tier=SubscriptionTier.TRIAL,
-                    status=ActivityStatus.ACCEPTED,
-                    request_key="async/test_key",
-                    result="",
-                    payload="",
-                    ip_address="",
-                    latency=0.0,
-                )
+    def test_create_activity(self, query):
+        query.create_activity(
+            ActivityCreate(
+                request="async/test",
+                username="ahmed",
+                tier=SubscriptionTier.TRIAL,
+                status=ActivityStatus.ACCEPTED,
+                request_key="async/test_key1234",
+                result="",
+                payload="",
+                ip_address="",
+                latency=0.0,
             )
-            is None
         )
+
         assert (
-            query.get_activity_by_key("async/test_key").request_key == "async/test_key"
+            query.get_activity_by_key("async/test_key1234").request_key == "async/test_key1234"
         )
 
-    def test_create_activity_helper(self, db_session):
-        ActivityFactory._meta.sqlalchemy_session = db_session
-        ActivityFactory._meta.sqlalchemy_session_persistence = "commit"
-
-        query = ActivityQuery(db_session)
-        application = "voice2text"
-        request_key = "voice2text_key"
-        kwargs = {
-            "request": f"/async/{application}",
-            "username": "ahmed",
-            "tier": SubscriptionTier.TRIAL,
-            "status": ActivityStatus.ACCEPTED,
-            "request_key": request_key,
-            "latency": 0.0,
-        }
-        Activity.create_activity_helper(**kwargs)
-        assert query.get_activity_by_key(request_key).request_key == request_key
-
-    def test_get_activity_by_key(self, client, db_session):
-        query = ActivityQuery(db_session)
+    def test_get_activity_by_key(self, client, query):
         assert query.get_activity_by_key("app1_key").request_key == "app1_key"
 
         with pytest.raises(ActivityException):
             query.get_activity_by_key("key 2")
 
-    def test_update_activity(self, client, db_session):
-        query = ActivityQuery(db_session)
-        assert (
-            query.update_activity(
-                "app1_key",
-                **{"tier": SubscriptionTier.STANDARD, "ip_address": "test ip"},
-            )
-            is None
+    def test_update_activity(self, client, query):
+        activity = query.get_activity_by_key("app1_key")
+        assert activity.tier == SubscriptionTier.TRIAL
+
+        query.update_activity(
+            "app1_key",
+            **{"tier": SubscriptionTier.STANDARD, "ip_address": "test ip"},
         )
+
         activity = query.get_activity_by_key("app1_key")
         assert (
             activity.tier == SubscriptionTier.STANDARD

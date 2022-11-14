@@ -10,22 +10,23 @@ from fastapi.openapi.utils import get_openapi
 from dotenv import load_dotenv
 from pipeline import Message, Settings, Command, CommandActions, Monitor
 
-from apihub.activity.models import Activity
-from apihub.activity.schemas import ActivityStatus
-from apihub.security.depends import RateLimiter, RateLimits, require_user
-from apihub.security.router import router as security_router
-from apihub.subscription.depends import require_subscription
-from apihub.subscription.router import router as application_router
-from apihub.subscription.schemas import SubscriptionBase
-from apihub.utils import (
+from .common.db_session import db_context
+from .activity.models import Activity
+from .activity.schemas import ActivityStatus, ActivityCreate
+from .activity.queries import ActivityQuery
+from .security.depends import RateLimiter, RateLimits, require_user
+from .security.router import router as security_router
+from .subscription.depends import require_subscription
+from .subscription.router import router as application_router
+from .subscription.schemas import SubscriptionBase
+from .utils import (
     State,
     make_topic,
     make_key,
     Result,
-    Status,
     DefinitionManager,
 )
-from apihub import __worker__, __version__
+from . import __worker__, __version__
 
 load_dotenv(override=False)
 
@@ -149,31 +150,36 @@ async def async_service(
     info = Result(
         user=username,
         api=application,
-        status=Status.ACCEPTED,
+        status=ActivityStatus.ACCEPTED,
     )
 
     accept_notification = Message(content=info.dict(), id=key)
     get_state().write(make_topic("result"), accept_notification)
 
     # send job request to its appropriate topic
-    info.status = Status.PROCESSED
+    info.status = ActivityStatus.PROCESSED
     dct.update(info.dict())
     get_state().write(make_topic(application), Message(content=dct, id=key))
 
     operation_counter.labels(api=application, user=username, operation="accepted").inc()
-    kwargs = {
-        "request": f"/async/{application}",
-        "username": username,
-        "tier": tier,
-        "status": ActivityStatus.ACCEPTED,
-        "request_key": str(key),
-        "result": str(info.dict()),
-        "payload": str(dct),
-        "ip_address": str(request.client.host),
-        "latency": 0.0,
-    }
 
-    background_tasks.add_task(Activity.create_activity_helper, **kwargs)
+    activity = ActivityCreate(
+        request=f"/async/{application}",
+        username=username,
+        tier=tier,
+        status= ActivityStatus.ACCEPTED,
+        request_key=str(key),
+        result=str(info.dict()),
+        payload=str(dct),
+        ip_address=str(request.client.host),
+        latency=0.0,
+    )
+
+    def add_activity_task(activity):
+        with db_context() as session:
+            ActivityQuery(session).create_activity(activity)
+
+    background_tasks.add_task(add_activity_task, activity=activity)
     return AsyncAPIRequestResponse(success=True, key=key)
 
 
@@ -205,12 +211,12 @@ async def async_service_result(
 
     result = Result.parse_raw(result)
 
-    if result.status == Status.ACCEPTED:
+    if result.status == ActivityStatus.ACCEPTED:
         raise HTTPException(
             status_code=202,
             detail="Result is not ready",
         )
-    elif result.status != Status.PROCESSED:
+    elif result.status != ActivityStatus.PROCESSED:
         operation_counter.labels(
             api=application, user=username, operation="error"
         ).inc()
