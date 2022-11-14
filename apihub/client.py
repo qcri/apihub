@@ -5,7 +5,7 @@ import requests
 from pydantic import BaseSettings
 
 from apihub.security.router import UserCreate
-from .subscription.router import SubscriptionIn
+from .subscription.schemas import SubscriptionIn
 
 
 class ClientSettings(BaseSettings):

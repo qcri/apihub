@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from apihub.client import Client
-from .subscription.router import SubscriptionIn
+from .subscription.schemas import SubscriptionIn
 
 
 cli = typer.Typer()

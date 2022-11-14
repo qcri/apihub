@@ -12,9 +12,12 @@ from ..security.schemas import (
 from ..security.depends import require_admin, require_token
 from ..security.queries import UserQuery, UserException
 
-from .schemas import SubscriptionCreate
-from .queries import SubscriptionQuery, SubscriptionException
-
+from .schemas import SubscriptionCreate, SubscriptionIn
+from .queries import (
+    SubscriptionQuery,
+    SubscriptionException,
+    SubscriptionPricingException,
+)
 
 HTTP_429_TOO_MANY_REQUESTS = 429
 
@@ -26,23 +29,12 @@ class SubscriptionSettings(BaseSettings):
     subscription_token_expires_days: int = 1
 
 
-# FIXME move this to schemas
-class SubscriptionIn(BaseModel):
-    username: str
-    application: str
-    tier: str
-    credit: int
-    expires_at: Optional[datetime] = None
-    recurring: bool = False
-
-
 @router.post("/subscription")
 def create_subscription(
     subscription: SubscriptionIn,
     username: str = Depends(require_admin),
     session=Depends(create_session),
 ):
-
     # make sure the username exists.
     try:
         UserQuery(session).get_user_by_username(subscription.username)
@@ -69,7 +61,6 @@ def create_subscription(
         username=subscription.username,
         application=subscription.application,
         tier=subscription.tier,
-        credit=subscription.credit,
         starts_at=datetime.now(),
         expires_at=subscription.expires_at,
         recurring=subscription.recurring,
@@ -79,8 +70,10 @@ def create_subscription(
         query = SubscriptionQuery(session)
         query.create_subscription(subscription_create)
         return subscription_create
-    except SubscriptionException:
-        return {}
+    except SubscriptionException as e:
+        raise HTTPException(400, str(e))
+    except SubscriptionPricingException as e:
+        raise HTTPException(400, str(e))
 
 
 @router.get("/subscription/{application}")
@@ -89,7 +82,6 @@ def get_active_subscription(
     user: UserBase = Depends(require_token),
     session=Depends(create_session),
 ):
-
     query = SubscriptionQuery(session)
     try:
         subscription = query.get_active_subscription(user.username, application)
