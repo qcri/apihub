@@ -70,7 +70,8 @@ class Subscription(Base):
     # duplicate tier to make it easier to query.
     tier = Column(Enum(SubscriptionTier), default=SubscriptionTier.TRIAL)
     active = Column(Boolean, default=True)
-    # credit = Column(Integer, default=0)
+    # keep credit in as it's to avoid querying SubscriptionPricing too often.
+    credit = Column(Integer, default=0)
     balance = Column(Integer, default=0)
     starts_at = Column(DateTime, default=datetime.now())
     expires_at = Column(DateTime)
