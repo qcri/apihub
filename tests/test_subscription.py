@@ -21,7 +21,11 @@ from apihub.subscription.models import (
     SubscriptionPricing,
 )
 from apihub.subscription.router import router
-from apihub.subscription.schemas import SubscriptionIn
+from apihub.subscription.schemas import (
+    SubscriptionIn,
+    ApplicationCreate,
+    SubscriptionPricingCreate2,
+)
 
 from apihub.security.helpers import hash_password
 
@@ -116,20 +120,6 @@ def client(db_session):
     ):
         pass
 
-    ApplicationFactory._meta.sqlalchemy_session = db_session
-    ApplicationFactory._meta.sqlalchemy_session_persistence = "commit"
-    ApplicationFactory(name="application", url="/test")
-    ApplicationFactory(name="application2", url="/test2")
-
-    SubscriptionPricingFactory._meta.sqlalchemy_session = db_session
-    SubscriptionPricingFactory._meta.sqlalchemy_session_persistence = "commit"
-    SubscriptionPricingFactory(
-        tier=SubscriptionTier.TRIAL, price=100, credit=100, application="application"
-    )
-    SubscriptionPricingFactory(
-        tier=SubscriptionTier.TRIAL, price=200, credit=200, application="application2"
-    )
-
     UserFactory._meta.sqlalchemy_session = db_session
     UserFactory._meta.sqlalchemy_session_persistence = "commit"
     UserFactory(username="tester", role=UserType.USER)
@@ -145,8 +135,102 @@ def _require_user_token():
     return UserBase(username="tester", role=UserType.USER)
 
 
+class TestApplication:
+    def test_create_application(self, client):
+        new_application = ApplicationCreate(
+            name="test",
+            url="/test",
+            description="test",
+            pricing=[
+                SubscriptionPricingCreate2(
+                    tier=SubscriptionTier.TRIAL, price=100, credit=100
+                ),
+                SubscriptionPricingCreate2(
+                    tier=SubscriptionTier.STANDARD, price=200, credit=200
+                ),
+                SubscriptionPricingCreate2(
+                    tier=SubscriptionTier.PREMIUM, price=300, credit=300
+                ),
+            ],
+        )
+        response = client.post(
+            "/application",
+            data=new_application.json(),
+        )
+        assert response.status_code == 200
+
+        response = client.get(
+            "/application/test",
+        )
+
+        response_json = response.json()
+        assert len(response_json["pricing"]) == 3
+
+    def test_list_application(self, client, db_session):
+        ApplicationFactory._meta.sqlalchemy_session = db_session
+        ApplicationFactory._meta.sqlalchemy_session_persistence = "commit"
+        ApplicationFactory(name="application", url="/test")
+        ApplicationFactory(name="application2", url="/test2")
+
+        SubscriptionPricingFactory._meta.sqlalchemy_session = db_session
+        SubscriptionPricingFactory._meta.sqlalchemy_session_persistence = "commit"
+        SubscriptionPricingFactory(
+            tier=SubscriptionTier.TRIAL,
+            price=100,
+            credit=100,
+            application="application",
+        )
+        SubscriptionPricingFactory(
+            tier=SubscriptionTier.TRIAL,
+            price=200,
+            credit=200,
+            application="application2",
+        )
+        response = client.get("/application")
+        assert response.status_code == 200
+        response_json = response.json()
+        assert len(response_json) == 2
+
+    def test_get_application(self, client, db_session):
+        ApplicationFactory._meta.sqlalchemy_session = db_session
+        ApplicationFactory._meta.sqlalchemy_session_persistence = "commit"
+        ApplicationFactory(name="application", url="/test")
+
+        SubscriptionPricingFactory._meta.sqlalchemy_session = db_session
+        SubscriptionPricingFactory._meta.sqlalchemy_session_persistence = "commit"
+        SubscriptionPricingFactory(
+            tier=SubscriptionTier.TRIAL,
+            price=100,
+            credit=100,
+            application="application",
+        )
+
+        response = client.get(
+            "/application/application",
+        )
+        assert response.status_code == 200
+        response_json = response.json()
+        assert (
+            len(response_json["pricing"]) == 1
+            and response_json["pricing"][0]["tier"] == "TRIAL"
+        )
+
+
 class TestSubscription:
-    def test_create_and_get_subscription(self, client):
+    def test_create_and_get_subscription(self, client, db_session):
+        ApplicationFactory._meta.sqlalchemy_session = db_session
+        ApplicationFactory._meta.sqlalchemy_session_persistence = "commit"
+        ApplicationFactory(name="application", url="/test")
+
+        SubscriptionPricingFactory._meta.sqlalchemy_session = db_session
+        SubscriptionPricingFactory._meta.sqlalchemy_session_persistence = "commit"
+        SubscriptionPricingFactory(
+            tier=SubscriptionTier.TRIAL,
+            price=100,
+            credit=100,
+            application="application",
+        )
+
         # case 1: create subscription
         new_subscription = SubscriptionIn(
             username="tester",
@@ -168,41 +252,6 @@ class TestSubscription:
         assert response.status_code == 200
         assert response.json().get("credit") == 100
         assert response.json().get("active") is True
-
-        # case 2: create subscription with invalid credit
-        new_subscription = SubscriptionIn(
-            username="tester",
-            application="application2",
-            tier=SubscriptionTier.TRIAL,
-            credit=400,
-            expires_at=None,
-            recurring=False,
-        )
-        response = client.post(
-            "/subscription",
-            data=new_subscription.json(),
-        )
-        assert response.status_code == 200
-        response = client.get(
-            "/subscription/application2",
-        )
-        assert response.status_code == 200
-        assert response.json().get("credit") == 200
-
-        # case 3: create subscription with invalid application
-        new_subscription = SubscriptionIn(
-            username="tester",
-            application="not_application",
-            tier=SubscriptionTier.TRIAL,
-            credit=100,
-            expires_at=None,
-            recurring=False,
-        )
-        response = client.post(
-            "/subscription",
-            data=new_subscription.json(),
-        )
-        assert response.status_code == 400
 
     def test_get_all_subscriptions(self, client):
         response = client.get(
@@ -277,7 +326,34 @@ class TestSubscription:
         assert response.status_code == 200, response.json()
         assert response.json().get("token") is not None
 
-    def test_create_duplicate_subscription(self, client):
+    def test_create_duplicate_subscription(self, client, db_session):
+        new_subscription = SubscriptionIn(
+            username="tester",
+            application="application",
+            tier=SubscriptionTier.TRIAL,
+            credit=123,
+            expires_at=None,
+            recurring=False,
+        )
+        response = client.post(
+            "/subscription",
+            data=new_subscription.json(),
+        )
+        assert response.status_code == 400
+
+        ApplicationFactory._meta.sqlalchemy_session = db_session
+        ApplicationFactory._meta.sqlalchemy_session_persistence = "commit"
+        ApplicationFactory(name="application", url="/test")
+
+        SubscriptionPricingFactory._meta.sqlalchemy_session = db_session
+        SubscriptionPricingFactory._meta.sqlalchemy_session_persistence = "commit"
+        SubscriptionPricingFactory(
+            tier=SubscriptionTier.TRIAL,
+            price=100,
+            credit=100,
+            application="application",
+        )
+
         new_subscription = SubscriptionIn(
             username="tester",
             application="application",

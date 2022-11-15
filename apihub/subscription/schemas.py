@@ -1,14 +1,37 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from enum import Enum
 from pydantic import BaseModel
 
 
-class ApplicationDetails(BaseModel):
+class ApplicationSchema(BaseModel):
     name: str
     url: str
     description: str
+
+
+class SubscriptionPricingCreate(BaseModel):
+    tier: str
+    price: int
+    credit: int
+    application: str
+
+
+class SubscriptionPricingCreate2(BaseModel):
+    tier: str
+    price: int
+    credit: int
+
+
+class ApplicationDetails(ApplicationSchema):
+    tier: str
+    price: int
+    credit: int
+
+
+class ApplicationCreate(ApplicationSchema):
+    pricing: List[SubscriptionPricingCreate2]
 
 
 class SubscriptionPricingDetails(BaseModel):

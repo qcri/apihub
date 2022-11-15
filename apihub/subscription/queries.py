@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List
 from datetime import datetime
 
 from sqlalchemy import or_
@@ -9,7 +9,12 @@ from sqlalchemy.orm import Query
 
 from ..common.queries import BaseQuery
 from .models import Subscription, Application, SubscriptionPricing
-from .schemas import SubscriptionCreate, SubscriptionDetails
+from .schemas import (
+    SubscriptionCreate,
+    SubscriptionDetails,
+    ApplicationCreate,
+    SubscriptionPricingCreate2,
+)
 from .helpers import get_and_reset_balance_in_cache
 
 
@@ -33,35 +38,71 @@ class ApplicationQuery(BaseQuery):
         """
         return self.session.query(Application)
 
-    def create_application(
-        self, name: str, url: str, description: Optional[str] = None
-    ) -> Application:
+    def create_application(self, application: ApplicationCreate):
         """
-        Create application.
-        :param name: Application name.
-        :param url: Application url.
-        :param description: Application description.
+        Create an application.
+        :param application: Application details.
         :return: Application object.
         """
-        application = Application(name=name, url=url, description=description)
+        pricing_list = []
+        for pricing in application.pricing:
+            pricing_list.append(
+                SubscriptionPricing(
+                    tier=pricing.tier,
+                    price=pricing.price,
+                    credit=pricing.credit,
+                    application=application.name,
+                )
+            )
+        application_object = Application(
+            name=application.name,
+            url=application.url,
+            description=application.description,
+            subscriptions_pricing=pricing_list,
+        )
         try:
-            self.session.add(application)
+            self.session.add(application_object)
             self.session.commit()
             return application
         except Exception as e:
             self.session.rollback()
             raise ApplicationException(f"Error creating application: {e}")
 
-    def get_application(self, name: str) -> Application:
+    def get_application(self, name: str) -> ApplicationCreate:
         """
         Get application by name.
         :param name: Application name.
-        :return: Application object.
+        :return: List of application pricing.
         """
         try:
-            return self.get_query().filter(Application.name == name).one()
+            application = self.get_query().filter(Application.name == name).one()
+            application_create = ApplicationCreate(
+                name=application.name,
+                url=application.url,
+                description=application.description,
+                pricing=[],
+            )
+            for pricing in application.subscriptions_pricing:
+                application_create.pricing.append(
+                    SubscriptionPricingCreate2(
+                        tier=pricing.tier,
+                        price=pricing.price,
+                        credit=pricing.credit,
+                    )
+                )
+            return application_create
         except NoResultFound:
             raise ApplicationException(f"Application {name} not found.")
+
+    def list_applications(self) -> List[ApplicationCreate]:
+        """
+        List applications.
+        :return: List of applications.
+        """
+        application_list = []
+        for application in self.get_query().all():
+            application_list.append(self.get_application(application.name))
+        return application_list
 
 
 class SubscriptionPricingQuery(BaseQuery):

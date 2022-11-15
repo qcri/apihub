@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, BaseSettings
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Depends, HTTPException, FastAPI
 from fastapi_jwt_auth import AuthJWT
 
 from ..common.db_session import create_session
@@ -12,21 +12,67 @@ from ..security.schemas import (
 from ..security.depends import require_admin, require_token
 from ..security.queries import UserQuery, UserException
 
-from .schemas import SubscriptionCreate, SubscriptionIn
+from .schemas import (
+    SubscriptionCreate,
+    SubscriptionIn,
+    ApplicationCreate,
+)
 from .queries import (
     SubscriptionQuery,
     SubscriptionException,
     SubscriptionPricingException,
+    ApplicationQuery,
+    ApplicationException,
 )
+from fastapi_utils.cbv import cbv
+from fastapi_utils.inferring_router import InferringRouter
+from sqlalchemy.orm import Session
 
 HTTP_429_TOO_MANY_REQUESTS = 429
 
-router = APIRouter()
+app = FastAPI()
+router = InferringRouter()
 
 
 class SubscriptionSettings(BaseSettings):
     default_subscription_days: int = 30
     subscription_token_expires_days: int = 1
+
+
+@cbv(router)
+class ApplicationCBV:
+    session: Session = Depends(create_session)
+    username: str = (Depends(require_admin),)
+
+    @router.post("/application", response_model=ApplicationCreate)
+    def create_application(self, application: ApplicationCreate):
+        """
+        Create an application.
+        """
+        try:
+            return ApplicationQuery(self.session).create_application(application)
+        except ApplicationException as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @router.get("/application", response_model=List[ApplicationCreate])
+    def list_application(self):
+        try:
+            """
+            List all applications.
+            """
+            return ApplicationQuery(self.session).list_applications()
+        except ApplicationException:
+            raise HTTPException(400, "Error while retrieving applications")
+
+    @router.get("/application/{application}", response_model=ApplicationCreate)
+    def get_application(self, application: str):
+        try:
+            """
+            Get an application.
+            """
+            return ApplicationQuery(self.session).get_application(application)
+        except ApplicationException:
+            raise HTTPException(400, "Error while retrieving applications")
 
 
 @router.post("/subscription")
