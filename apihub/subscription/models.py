@@ -28,8 +28,7 @@ class Application(Base):
     url = Column(String)
     description = Column(String)
 
-    all_subscriptions = relationship("Subscription", backref="app")
-
+    subscriptions = relationship("Subscription", backref="app")
     subscriptions_pricing = relationship("SubscriptionPricing", backref="app")
 
     def __str__(self):
