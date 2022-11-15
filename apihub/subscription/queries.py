@@ -73,7 +73,7 @@ class SubscriptionPricingQuery(BaseQuery):
         return self.session.query(SubscriptionPricing)
 
     def create_subscription_pricing(
-        self, tier: str, application: str, price: float, credit: float
+        self, tier: str, application: str, price: int, credit: int
     ) -> SubscriptionPricing:
         """
         Create subscription pricing.
