@@ -8,13 +8,160 @@ from redis import Redis
 from sqlalchemy.orm import Query
 
 from ..common.queries import BaseQuery
-from .models import Subscription
-from .schemas import SubscriptionCreate, SubscriptionDetails
+from .models import Subscription, Application, SubscriptionPricing
+from .schemas import (
+    SubscriptionCreate,
+    SubscriptionDetails,
+    ApplicationCreate,
+    SubscriptionPricingCreate2,
+)
 from .helpers import get_and_reset_balance_in_cache
+
+
+class ApplicationException(Exception):
+    pass
+
+
+class SubscriptionPricingException(Exception):
+    pass
 
 
 class SubscriptionException(Exception):
     pass
+
+
+class ApplicationQuery(BaseQuery):
+    def get_query(self) -> Query:
+        """
+        Get query object.
+        :return: Query object.
+        """
+        return self.session.query(Application)
+
+    def create_application(self, application: ApplicationCreate):
+        """
+        Create an application.
+        :param application: Application details.
+        :return: Application object.
+        """
+        pricing_list = []
+        for pricing in application.pricing:
+            pricing_list.append(
+                SubscriptionPricing(
+                    tier=pricing.tier,
+                    price=pricing.price,
+                    credit=pricing.credit,
+                    application=application.name,
+                )
+            )
+        application_object = Application(
+            name=application.name,
+            url=application.url,
+            description=application.description,
+            subscriptions_pricing=pricing_list,
+        )
+        try:
+            self.session.add(application_object)
+            self.session.commit()
+            return application
+        except Exception as e:
+            self.session.rollback()
+            raise ApplicationException(f"Error creating application: {e}")
+
+    def get_application(self, name: str) -> ApplicationCreate:
+        """
+        Get application by name.
+        :param name: Application name.
+        :return: application object.
+        """
+        try:
+            application = self.get_query().filter(Application.name == name).one()
+            application_create = ApplicationCreate(
+                name=application.name,
+                url=application.url,
+                description=application.description,
+                pricing=[],
+            )
+            for pricing in application.subscriptions_pricing:
+                application_create.pricing.append(
+                    SubscriptionPricingCreate2(
+                        tier=pricing.tier,
+                        price=pricing.price,
+                        credit=pricing.credit,
+                    )
+                )
+            return application_create
+        except NoResultFound:
+            raise ApplicationException(f"Application {name} not found.")
+
+    def get_applications(self) -> List[ApplicationCreate]:
+        """
+        List applications.
+        :return: List of applications.
+        """
+        application_list = []
+        for application in self.get_query().all():
+            application_list.append(self.get_application(application.name))
+        return application_list
+
+
+class SubscriptionPricingQuery(BaseQuery):
+    def get_query(self) -> Query:
+        """
+        Get query object.
+        :return: Query object.
+        """
+        return self.session.query(SubscriptionPricing)
+
+    def create_subscription_pricing(
+        self, tier: str, application: str, price: int, credit: int
+    ) -> SubscriptionPricing:
+        """
+        Create subscription pricing.
+        :param tier: Subscription tier.
+        :param application: Application name.
+        :param price: Price.
+        :param credit: Credit.
+        :return: SubscriptionPricing object.
+        """
+        subscription_pricing = SubscriptionPricing(
+            tier=tier,
+            application=application,
+            price=price,
+            credit=credit,
+        )
+        try:
+            self.session.add(subscription_pricing)
+            self.session.commit()
+            return subscription_pricing
+        except Exception as e:
+            self.session.rollback()
+            raise SubscriptionPricingException(
+                f"Error creating subscription pricing: {e}"
+            )
+
+    def get_subscription_pricing(
+        self, application: str, tier: str
+    ) -> SubscriptionPricing:
+        """
+        Get subscription pricing by application name and tier.
+        :param application: Application name.
+        :param tier: Subscription tier.
+        :return: SubscriptionPricing object.
+        """
+        try:
+            return (
+                self.get_query()
+                .filter(
+                    SubscriptionPricing.application == application,
+                    SubscriptionPricing.tier == tier,
+                )
+                .one()
+            )
+        except NoResultFound:
+            raise SubscriptionPricingException(
+                f"Subscription pricing for application {application} and tier {tier} not found."
+            )
 
 
 class SubscriptionQuery(BaseQuery):
@@ -45,18 +192,29 @@ class SubscriptionQuery(BaseQuery):
                 "Found existing subscription, please delete it before create new subscription"
             )
 
+        subscription_pricing = SubscriptionPricingQuery(
+            self.session
+        ).get_subscription_pricing(
+            subscription_create.application, subscription_create.tier
+        )
+
         new_subscription = Subscription(
             username=subscription_create.username,
             application=subscription_create.application,
             active=subscription_create.active,
             tier=subscription_create.tier,
-            credit=subscription_create.credit,
+            credit=subscription_pricing.credit,
+            balance=subscription_pricing.credit,
             expires_at=subscription_create.expires_at,
             recurring=subscription_create.recurring,
             created_by=subscription_create.created_by,
         )
-        self.session.add(new_subscription)
-        self.session.commit()
+        try:
+            self.session.add(new_subscription)
+            self.session.commit()
+        except Exception as e:
+            self.session.rollback()
+            raise SubscriptionException(f"Error creating subscription: {e}")
 
     def get_active_subscription(
         self, username: str, application: str

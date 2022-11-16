@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from apihub.client import Client
-from .subscription.router import SubscriptionIn
+from .subscription.schemas import SubscriptionIn
 
 
 cli = typer.Typer()
@@ -119,7 +119,6 @@ def create_subscription(
             username=username,
             application=application,
             starts_at=datetime.now(),
-            credit=limit,
             expires_at=expires_at,
             recurring=recurring,
         )

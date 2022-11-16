@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, BaseSettings
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Depends, HTTPException
 from fastapi_jwt_auth import AuthJWT
 
 from ..common.db_session import create_session
@@ -12,13 +12,25 @@ from ..security.schemas import (
 from ..security.depends import require_admin, require_token
 from ..security.queries import UserQuery, UserException
 
-from .schemas import SubscriptionCreate
-from .queries import SubscriptionQuery, SubscriptionException
-
+from .schemas import (
+    SubscriptionCreate,
+    SubscriptionIn,
+    ApplicationCreate,
+)
+from .queries import (
+    SubscriptionQuery,
+    SubscriptionException,
+    SubscriptionPricingException,
+    ApplicationQuery,
+    ApplicationException,
+)
+from fastapi_utils.cbv import cbv
+from fastapi_utils.inferring_router import InferringRouter
+from sqlalchemy.orm import Session
 
 HTTP_429_TOO_MANY_REQUESTS = 429
 
-router = APIRouter()
+router = InferringRouter()
 
 
 class SubscriptionSettings(BaseSettings):
@@ -26,14 +38,40 @@ class SubscriptionSettings(BaseSettings):
     subscription_token_expires_days: int = 1
 
 
-# FIXME move this to schemas
-class SubscriptionIn(BaseModel):
-    username: str
-    application: str
-    tier: str
-    credit: int
-    expires_at: Optional[datetime] = None
-    recurring: bool = False
+@cbv(router)
+class ApplicationCBV:
+    session: Session = Depends(create_session)
+    username: str = (Depends(require_admin),)
+
+    @router.post("/application", response_model=ApplicationCreate)
+    def create_application(self, application: ApplicationCreate):
+        """
+        Create an application.
+        """
+        try:
+            return ApplicationQuery(self.session).create_application(application)
+        except ApplicationException as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @router.get("/application", response_model=List[ApplicationCreate])
+    def get_applications(self):
+        try:
+            """
+            List all applications.
+            """
+            return ApplicationQuery(self.session).get_applications()
+        except ApplicationException:
+            raise HTTPException(400, "Error while retrieving applications")
+
+    @router.get("/application/{application}", response_model=ApplicationCreate)
+    def get_application(self, application: str):
+        try:
+            """
+            Get an application.
+            """
+            return ApplicationQuery(self.session).get_application(application)
+        except ApplicationException:
+            raise HTTPException(400, "Error while retrieving applications")
 
 
 @router.post("/subscription")
@@ -42,7 +80,6 @@ def create_subscription(
     username: str = Depends(require_admin),
     session=Depends(create_session),
 ):
-
     # make sure the username exists.
     try:
         UserQuery(session).get_user_by_username(subscription.username)
@@ -60,6 +97,11 @@ def create_subscription(
     except SubscriptionException:
         pass
 
+    try:
+        ApplicationQuery(session).get_application(subscription.application)
+    except ApplicationException:
+        raise HTTPException(404, f"Application {subscription.application} not found.")
+
     if subscription.expires_at is None:
         subscription.expires_at = datetime.now() + timedelta(
             days=SubscriptionSettings().default_subscription_days
@@ -69,7 +111,6 @@ def create_subscription(
         username=subscription.username,
         application=subscription.application,
         tier=subscription.tier,
-        credit=subscription.credit,
         starts_at=datetime.now(),
         expires_at=subscription.expires_at,
         recurring=subscription.recurring,
@@ -79,8 +120,10 @@ def create_subscription(
         query = SubscriptionQuery(session)
         query.create_subscription(subscription_create)
         return subscription_create
-    except SubscriptionException:
-        return {}
+    except SubscriptionException as e:
+        raise HTTPException(400, str(e))
+    except SubscriptionPricingException as e:
+        raise HTTPException(400, str(e))
 
 
 @router.get("/subscription/{application}")
@@ -89,7 +132,6 @@ def get_active_subscription(
     user: UserBase = Depends(require_token),
     session=Depends(create_session),
 ):
-
     query = SubscriptionQuery(session)
     try:
         subscription = query.get_active_subscription(user.username, application)
