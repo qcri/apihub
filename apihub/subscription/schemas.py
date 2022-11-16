@@ -58,7 +58,6 @@ class SubscriptionIn(BaseModel):
     username: str
     application: str
     tier: str
-    credit: Optional[int] = 0
     expires_at: Optional[datetime] = None
     recurring: bool = False
 

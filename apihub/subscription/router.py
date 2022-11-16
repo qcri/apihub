@@ -98,6 +98,11 @@ def create_subscription(
     except SubscriptionException:
         pass
 
+    try:
+        ApplicationQuery(session).get_application(subscription.application)
+    except ApplicationException:
+        raise HTTPException(404, f"Application {subscription.application} not found.")
+
     if subscription.expires_at is None:
         subscription.expires_at = datetime.now() + timedelta(
             days=SubscriptionSettings().default_subscription_days

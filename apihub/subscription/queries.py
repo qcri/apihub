@@ -72,7 +72,7 @@ class ApplicationQuery(BaseQuery):
         """
         Get application by name.
         :param name: Application name.
-        :return: List of application pricing.
+        :return: application object.
         """
         try:
             application = self.get_query().filter(Application.name == name).one()

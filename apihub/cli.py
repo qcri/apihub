@@ -119,7 +119,6 @@ def create_subscription(
             username=username,
             application=application,
             starts_at=datetime.now(),
-            credit=limit,
             expires_at=expires_at,
             recurring=recurring,
         )

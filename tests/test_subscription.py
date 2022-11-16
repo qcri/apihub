@@ -236,7 +236,6 @@ class TestSubscription:
             username="tester",
             application="application",
             tier=SubscriptionTier.TRIAL,
-            credit=100,
             expires_at=None,
             recurring=False,
         )
@@ -264,7 +263,6 @@ class TestSubscription:
             username="not existing user",
             application="app 1",
             tier=SubscriptionTier.TRIAL,
-            credit=100,
             expires_at=None,
             recurring=False,
         )
@@ -331,7 +329,6 @@ class TestSubscription:
             username="tester",
             application="application",
             tier=SubscriptionTier.TRIAL,
-            credit=123,
             expires_at=None,
             recurring=False,
         )
@@ -339,7 +336,7 @@ class TestSubscription:
             "/subscription",
             data=new_subscription.json(),
         )
-        assert response.status_code == 400
+        assert response.status_code == 404
 
         ApplicationFactory._meta.sqlalchemy_session = db_session
         ApplicationFactory._meta.sqlalchemy_session_persistence = "commit"
@@ -358,7 +355,6 @@ class TestSubscription:
             username="tester",
             application="application",
             tier=SubscriptionTier.TRIAL,
-            credit=123,
             expires_at=None,
             recurring=False,
         )
