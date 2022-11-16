@@ -94,7 +94,7 @@ class ApplicationQuery(BaseQuery):
         except NoResultFound:
             raise ApplicationException(f"Application {name} not found.")
 
-    def list_applications(self) -> List[ApplicationCreate]:
+    def get_applications(self) -> List[ApplicationCreate]:
         """
         List applications.
         :return: List of applications.

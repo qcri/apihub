@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 
 from pydantic import BaseModel, BaseSettings
-from fastapi import Depends, HTTPException, FastAPI
+from fastapi import Depends, HTTPException
 from fastapi_jwt_auth import AuthJWT
 
 from ..common.db_session import create_session
@@ -30,7 +30,6 @@ from sqlalchemy.orm import Session
 
 HTTP_429_TOO_MANY_REQUESTS = 429
 
-app = FastAPI()
 router = InferringRouter()
 
 
@@ -55,12 +54,12 @@ class ApplicationCBV:
             raise HTTPException(status_code=400, detail=str(e))
 
     @router.get("/application", response_model=List[ApplicationCreate])
-    def list_application(self):
+    def get_applications(self):
         try:
             """
             List all applications.
             """
-            return ApplicationQuery(self.session).list_applications()
+            return ApplicationQuery(self.session).get_applications()
         except ApplicationException:
             raise HTTPException(400, "Error while retrieving applications")
 
