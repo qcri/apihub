@@ -104,7 +104,6 @@ def create_subscription(
     username: str,
     application: str,
     admin: str = "",
-    limit: int = 1000,
     days: int = 0,
     recurring: bool = False,
 ):

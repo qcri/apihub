@@ -57,6 +57,7 @@ typer = "^0.4.0"
 orjson = "^3.6.7"
 tanbih-pipeline = {extras = ["redis"], version = "^0.12.4"}
 fastapi-utils = "^0.2.1"
+locust = "^2.13.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.0"
