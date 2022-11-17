@@ -99,10 +99,11 @@ class ApplicationQuery(BaseQuery):
         List applications.
         :return: List of applications.
         """
-        application_list = []
-        for application in self.get_query().all():
-            application_list.append(self.get_application(application.name))
-        return application_list
+
+        return [
+            self.get_application(application.name)
+            for application in self.get_query().all()
+        ]
 
 
 class SubscriptionPricingQuery(BaseQuery):
@@ -274,21 +275,19 @@ class SubscriptionQuery(BaseQuery):
         except NoResultFound:
             raise SubscriptionException
 
-        data = []
-        for subscription in subscriptions:
-            data.append(
-                SubscriptionDetails(
-                    username=subscription.username,
-                    application=subscription.application,
-                    tier=subscription.tier,
-                    active=subscription.active,
-                    credit=subscription.credit,
-                    balance=subscription.balance,
-                    expires_at=subscription.expires_at,
-                    recurring=subscription.recurring,
-                )
+        return [
+            SubscriptionDetails(
+                username=subscription.username,
+                application=subscription.application,
+                tier=subscription.tier,
+                active=subscription.active,
+                credit=subscription.credit,
+                balance=subscription.balance,
+                expires_at=subscription.expires_at,
+                recurring=subscription.recurring,
             )
-        return data
+            for subscription in subscriptions
+        ]
 
     def update_balance_in_subscription(
         self, username: str, application: str, tier: str, redis: Redis
