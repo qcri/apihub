@@ -1,14 +1,5 @@
-import pdb
-
 import pytest
-from fastapi import FastAPI
-from apihub.common.db_session import create_session
 
-
-from fastapi.testclient import TestClient
-
-from apihub.subscription.router import router as sub_router
-from apihub.security.router import router as sec_router
 from apihub.activity.queries import ActivityQuery
 from apihub.activity.schemas import ActivityStatus
 from .test_activity import ActivityFactory
@@ -40,7 +31,9 @@ class TestResultWriter:
 
         try:
             writer = ResultWriter()
-            writer.parse_args("--in-kind FILE --in-filename tests/fixtures/result_input.txt --no-in-content-only".split())
+            writer.parse_args(
+                "--in-kind FILE --in-filename tests/fixtures/result_input.txt --no-in-content-only".split()
+            )
             writer.set_db_session(db_session)
             writer.start()
         except Exception:
@@ -49,14 +42,15 @@ class TestResultWriter:
         activity = query.get_activity_by_key(message_id)
         assert activity.status == ActivityStatus.PROCESSED
 
-
     def test_command(self, monkeypatch):
         monkeypatch.setenv("MONITORING", "FALSE")
         from apihub.result import ResultWriter
 
         try:
             writer = ResultWriter()
-            writer.parse_args("--in-kind FILE --in-filename tests/fixtures/command_input.txt".split())
+            writer.parse_args(
+                "--in-kind FILE --in-filename tests/fixtures/command_input.txt".split()
+            )
             writer.start()
         except Exception:
             pytest.fail("worker raised exception")

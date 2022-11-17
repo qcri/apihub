@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 from pipeline import Message, Settings, Command, CommandActions, Monitor
 
 from .common.db_session import db_context
-from .activity.models import Activity
 from .activity.schemas import ActivityStatus, ActivityCreate
 from .activity.queries import ActivityQuery
 from .security.depends import RateLimiter, RateLimits, require_user
@@ -167,7 +166,7 @@ async def async_service(
         request=f"/async/{application}",
         username=username,
         tier=tier,
-        status= ActivityStatus.ACCEPTED,
+        status=ActivityStatus.ACCEPTED,
         request_key=str(key),
         result=str(info.dict()),
         payload=str(dct),

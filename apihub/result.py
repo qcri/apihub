@@ -9,7 +9,6 @@ from .activity.schemas import ActivityStatus
 from .common.db_session import create_session
 from .utils import Result, RedisSettings, DefinitionManager
 from . import __worker__, __version__
-import pdb
 
 load_dotenv()
 

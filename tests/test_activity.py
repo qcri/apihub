@@ -73,7 +73,8 @@ class TestActivity:
         )
 
         assert (
-            query.get_activity_by_key("async/test_key1234").request_key == "async/test_key1234"
+            query.get_activity_by_key("async/test_key1234").request_key
+            == "async/test_key1234"
         )
 
     def test_get_activity_by_key(self, client, query):
