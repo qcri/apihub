@@ -24,7 +24,13 @@ class Application(Base):
     __tablename__ = "application"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True, nullable=False)
+    name = Column(
+        String,
+        unique=True,
+        index=True,
+        nullable=False,
+        comment="Application name with version, e.g. app1-v1",
+    )
     url = Column(String)
     description = Column(String)
 
