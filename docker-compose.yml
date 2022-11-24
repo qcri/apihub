@@ -21,12 +21,11 @@ services:
     networks:
       - external-nw
 
-
   server:
     build:
       context: .
       dockerfile: Dockerfile
-    command: ["poetry", "run", "python", "apihub/run_server.py"]
+    command: [ "poetry", "run", "python", "apihub/run_server.py" ]
     ports:
       - "5000:5000"
     environment:
@@ -45,6 +44,26 @@ services:
       - external-nw
     volumes:
       - .:/app
+
+  master:
+    build:
+      context: .
+      dockerfile: Dockerfile-locust
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./locustfiles:/mnt/locust
+    command: -f /mnt/locust/locustfile.py --master -H http://master:8089
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile-locust
+    #    image: locustio/locust
+    volumes:
+      - ./locustfiles:/mnt/locust
+    command: -f /mnt/locust/locustfile.py --worker --master-host master
+
 
 volumes:
   postgres_test:

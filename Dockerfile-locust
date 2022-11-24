@@ -1,0 +1,11 @@
+FROM locustio/locust
+
+RUN pip install poetry
+
+WORKDIR /mnt
+
+COPY poetry.lock pyproject.toml /mnt/
+
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-root --no-interaction --no-ansi
+
