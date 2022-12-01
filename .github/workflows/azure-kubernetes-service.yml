@@ -39,7 +39,9 @@ env:
   RESOURCE_GROUP: "meganews"
   CLUSTER_NAME: "apihub"
   NAMESPACE: "apihub"
-  DEPLOYMENT_MANIFEST_PATH: "manifests/apihub-server.yaml"
+  DEPLOYMENT_MANIFEST_PATH: |
+    manifests/apihub-server.yaml
+    manifests/apihub-result.yaml
 
 jobs:
   buildImage:
