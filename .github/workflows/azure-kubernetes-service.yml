@@ -30,7 +30,8 @@
 name: Build and deploy an app to AKS
 
 on:
-  release: [published]
+  release:
+    type: [published]
   workflow_dispatch:
 
 env:
