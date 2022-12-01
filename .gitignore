@@ -9,3 +9,4 @@ env
 dist
 **.apihub
 **/.DS_Store
+.secrets

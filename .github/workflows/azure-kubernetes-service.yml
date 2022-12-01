@@ -30,17 +30,12 @@
 name: Build and deploy an app to AKS
 
 on:
-  push:
-    tags:
+  release:
   workflow_dispatch:
-
-permissions:
-  contents: read
-  id-token: write
 
 env:
   AZURE_CONTAINER_REGISTRY: "meganews"
-  CONTAINER_NAME: "apihub-server"
+  CONTAINER_NAME: "apihub"
   RESOURCE_GROUP: "meganews"
   CLUSTER_NAME: "apihub"
   NAMESPACE: "apihub"
@@ -50,6 +45,9 @@ jobs:
   buildImage:
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
+      id-token: write
     steps:
       # Checks out the repository this file is in
       - uses: actions/checkout@v3
@@ -77,6 +75,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
     needs: [buildImage]
     steps:
       # Checks out the repository this file is in
