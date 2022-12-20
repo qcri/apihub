@@ -10,9 +10,6 @@ jobs:
       matrix:
         python-version: [3.8]
 
-    # Docker Hub image that `container-job` executes in
-    container: python:3.8-slim
-
     # Service containers to run with `container-job`
     services:
       # Label used to access the service container
@@ -59,7 +56,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install
+          env LC_ALL=C.UTF-8 LANG=C.UTF-8 LANGUAGE=C.UTF-8 poetry install --verbose
 
       - name: Run pytests
         # Runs a script that creates a Redis client, populates
