@@ -96,3 +96,32 @@ def test_redoc(client, monkeypatch):
 
     response = client.get("/redoc")
     assert response.status_code == 200
+
+def test_openapi(client, monkeypatch):
+    monkeypatch.setenv("IN_KIND", "MEM")
+    monkeypatch.setenv("IN_NAMESPACE", "namespace")
+    monkeypatch.setenv("OUT_KIND", "MEM")
+    monkeypatch.setenv("OUT_NAMESPACE", "namespace")
+    import apihub.server
+
+    class DummyDefinition(BaseModel):
+        input_schema: Dict[str, Any]
+
+    class Input(BaseModel):
+        text: str
+        probability: float
+
+    def _get_definition_manager():
+        class DummyDefinitionManager:
+            def get(self, application):
+                return DummyDefinition(input_schema=Input.schema())
+
+        return DummyDefinitionManager()
+
+    monkeypatch.setattr(
+        apihub.server, "get_definition_manager", _get_definition_manager
+    )
+
+    schema = apihub.server.custom_openapi()
+
+    assert schema["info"]["title"] == "APIHub"
