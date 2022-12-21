@@ -10,15 +10,14 @@ jobs:
       matrix:
         python-version: [3.8]
 
-    # Docker Hub image that `container-job` executes in
-    container: python:3.8-slim
-
     # Service containers to run with `container-job`
     services:
       # Label used to access the service container
       redis:
         # Docker Hub image
         image: redis
+        ports:
+          - "6379:6379"
         # Set health checks to wait until redis has started
         options: >-
           --health-cmd "redis-cli ping"
@@ -29,6 +28,8 @@ jobs:
       postgres:
         # Docker Hub image
         image: postgres
+        ports:
+          - "5432:5432"
         # Provide the password for postgres
         env:
           POSTGRES_USER: dbuser
@@ -59,7 +60,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install
+          env LC_ALL=C.UTF-8 LANG=C.UTF-8 LANGUAGE=C.UTF-8 poetry install --verbose
 
       - name: Run pytests
         # Runs a script that creates a Redis client, populates
@@ -68,10 +69,10 @@ jobs:
           poetry run  pytest
         # Environment variable used by the `client.js` script to create a new Redis client.
         env:
-          REDIS: redis://redis:6379/1
-          IN_REDIS: redis://redis:6379/1
-          OUT_REDIS: redis://redis:6379/1
-          DB_URI: "postgresql://dbuser:dbpass@postgres:5432/test"
+          REDIS: redis://localhost:6379/1
+          IN_REDIS: redis://localhost:6379/1
+          OUT_REDIS: redis://localhost:6379/1
+          DB_URI: "postgresql://dbuser:dbpass@localhost:5432/test"
           JWT_SECRET: "nosecret"
           SECURITY_TOKEN_EXPIRES_DAYS: 1
           SUBSCRIPTION_TOKEN_EXPIRES_DAYS: 1

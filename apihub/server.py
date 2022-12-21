@@ -236,10 +236,6 @@ async def async_service_result(
     )
 
 
-@api.post(
-    "/sync/{application}",
-    include_in_schema=False,
-)
 def extract_components(schema, components):
     definitions = schema.get("definitions")
     if definitions:

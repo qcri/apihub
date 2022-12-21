@@ -41,7 +41,7 @@ class SubscriptionSettings(BaseSettings):
 @cbv(router)
 class ApplicationCBV:
     session: Session = Depends(create_session)
-    username: str = (Depends(require_admin),)
+    username: str = Depends(require_admin)
 
     @router.post("/application", response_model=ApplicationCreate)
     def create_application(self, application: ApplicationCreate):
