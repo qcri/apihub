@@ -99,6 +99,45 @@ def test_define_service(client):
     assert response.status_code == 200
 
 
+def test_async_service_json_validation_error(client, db_session, monkeypatch):
+    monkeypatch.setenv("IN_KIND", "MEM")
+    monkeypatch.setenv("IN_NAMESPACE", "namespace")
+    monkeypatch.setenv("OUT_KIND", "MEM")
+    monkeypatch.setenv("OUT_NAMESPACE", "namespace")
+    import apihub.server
+
+    class DummyDefinition(BaseModel):
+        input_schema: Dict[str, Any]
+
+    class Input(BaseModel):
+        text: str
+        probability: float
+
+    def _get_definition_manager():
+        class DummyDefinitionManager:
+            def get(self, application):
+                return DummyDefinition(input_schema=Input.schema())
+
+        return DummyDefinitionManager()
+
+    monkeypatch.setattr(
+        apihub.server, "get_definition_manager", _get_definition_manager
+    )
+
+    response = client.post(
+        "/async/test", params={}, json={"probability": 0.6}
+    )
+
+    assert response.status_code == 422
+
+    assert (
+        len(
+            apihub.server.get_state()
+            .pipeline.destinations
+        ) == 0
+    )
+
+
 def test_redoc(client, monkeypatch):
     monkeypatch.setenv("IN_KIND", "MEM")
     monkeypatch.setenv("IN_NAMESPACE", "namespace")

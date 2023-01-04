@@ -9,6 +9,7 @@ from fastapi_jwt_auth import AuthJWT
 from fastapi_jwt_auth.exceptions import AuthJWTException
 from fastapi.openapi.utils import get_openapi
 from jsonschema import validate
+from jsonschema.exceptions import ValidationError
 from dotenv import load_dotenv
 from pipeline import Message, Settings, Command, CommandActions, Monitor
 
@@ -140,7 +141,11 @@ async def make_request(username: str, application: str, request: Request):
     dct.update(request.query_params)
 
     definition = get_definition_manager().get(application)
-    validate(instance=dct, schema=definition.input_schema)
+
+    try:
+        validate(instance=dct, schema=definition.input_schema)
+    except ValidationError as e:
+        raise HTTPException(422, str(e))
 
     # inject user information
     info = Result(
@@ -294,6 +299,12 @@ def get_paths(redis=get_redis()):
                 "403": {
                     "description": "You don't have the permission to use this API",
                 },
+                "422": {
+                    "description": "Input validation error",
+                },
+                "429": {
+                    "description": "Exceeded access quota",
+                },
             },
             "description": definition.description,
             "security": security,
@@ -325,8 +336,10 @@ def get_paths(redis=get_redis()):
                 "in": "query",
                 "description": "the unique key obtained from post request",
                 "required": True,
-                "type": "string",
-                "format": "string",
+                "schema": {
+                    "type": "string",
+                    "format": "string",
+                }
             }
         ]
         # a strange way to sort parameters maybe
@@ -350,37 +363,6 @@ def get_paths(redis=get_redis()):
         path["get"] = operation
 
         paths[f"/async/{name}"] = path
-
-        # synchronized API
-        path = {}
-        operation = {
-            "tags": ["app"],
-            "summary": definition.description,
-            "description": definition.description,
-            "security": security,
-            "requestBody": {
-                "content": {
-                    "application/json": {
-                        "schema": definition.input_schema,  # ["properties"],
-                    }
-                },
-                "required": True,
-            },
-            "responses": {
-                "200": {
-                    "description": "success",
-                    "content": {
-                        "application/json": {
-                            "schema": definition.output_schema,
-                        }
-                    },
-                }
-            },
-        }
-
-        path["post"] = operation
-
-        paths[f"/sync/{name}"] = path
 
     return paths, components_schemas, security_schemes
 
