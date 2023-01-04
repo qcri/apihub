@@ -9,6 +9,7 @@ from typing import Dict, Any
 from apihub.common.db_session import create_session
 from apihub.subscription.depends import require_subscription
 from apihub.subscription.schemas import SubscriptionTier, SubscriptionBase
+from apihub.utils import make_topic
 
 
 @pytest.fixture(scope="function")
@@ -19,9 +20,9 @@ def client(monkeypatch):
     def _ip_rate_limited():
         pass
 
-    def _require_subscription():
+    def _require_subscription(application:str):
         return SubscriptionBase(
-            username="test", tier=SubscriptionTier.TRIAL, application="app1"
+            username="test", tier=SubscriptionTier.TRIAL, application=application,
         )
 
     monkeypatch.setenv("OUT_KIND", "MEM")
@@ -45,21 +46,50 @@ def test_slash(client):
     # assert len(list(filter(lambda x: x == 200, status_codes))) == 10
 
 
-def test_async_service(client, db_session):
-    with patch("fastapi.BackgroundTasks.add_task") as mocked_add_task:
-        application = "app1"
-        url = f"/async/{application}"
-        response = client.post(url)
-        assert response.status_code == 200
+def test_async_service_json(client, db_session, monkeypatch):
+    monkeypatch.setenv("IN_KIND", "MEM")
+    monkeypatch.setenv("IN_NAMESPACE", "namespace")
+    monkeypatch.setenv("OUT_KIND", "MEM")
+    monkeypatch.setenv("OUT_NAMESPACE", "namespace")
+    import apihub.server
 
-        application = "app2"
-        url = f"/async/{application}"
-        response = client.post(
-            url,
-            params={"text": "this is simple"},
+    class DummyDefinition(BaseModel):
+        input_schema: Dict[str, Any]
+
+    class Input(BaseModel):
+        text: str
+        probability: float
+
+    def _get_definition_manager():
+        class DummyDefinitionManager:
+            def get(self, application):
+                return DummyDefinition(input_schema=Input.schema())
+
+        return DummyDefinitionManager()
+
+    monkeypatch.setattr(
+        apihub.server, "get_definition_manager", _get_definition_manager
+    )
+
+    response = client.post(
+        "/async/test", params={"text": "this is simple"}, json={"probability": 0.6}
+    )
+
+    assert response.status_code == 200
+
+    assert (
+        len(
+            apihub.server.get_state()
+            .pipeline.destination_of(make_topic("test"))
+            .results
         )
-        assert response.status_code == 200
-        mocked_add_task.assert_called()
+        == 1
+    )
+
+    assert (
+        apihub.server.get_state().pipeline.destination_of(make_topic("test")).topic
+        == "test"
+    )
 
 
 def test_define_service(client):

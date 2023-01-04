@@ -6,7 +6,9 @@ from typing import Dict, Any
 from fastapi import FastAPI, HTTPException, Request, Query, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
 from fastapi_jwt_auth import AuthJWT
+from fastapi_jwt_auth.exceptions import AuthJWTException
 from fastapi.openapi.utils import get_openapi
+from jsonschema import validate
 from dotenv import load_dotenv
 from pipeline import Message, Settings, Command, CommandActions, Monitor
 
@@ -84,6 +86,11 @@ api.include_router(
 )
 
 
+@api.exception_handler(AuthJWTException)
+def authjwt_exception_handler(request: Request, exc: AuthJWTException):
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
+
+
 class AsyncAPIRequestResponse(BaseModel):
     success: bool = Field(title="boolean", example=True)
     key: str = Field(title="unique key", example="91cb3a68-dd59-11ea-9f2a-82527949ac01")
@@ -118,33 +125,22 @@ async def define_service(
     return {"define": f"application {application}"}
 
 
-@api.post(
-    "/async/{application}",
-    include_in_schema=False,
-    response_model=AsyncAPIRequestResponse,
-    dependencies=[Depends(ip_rate_limited)],
-)
-async def async_service(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    subscription: SubscriptionBase = Depends(require_subscription),
-):
-    """generic handler for async api."""
-
-    username = subscription.username
-    tier = subscription.tier
-    application = subscription.application
-    operation_counter.labels(api=application, user=username, operation="received").inc()
+async def make_request(username: str, application: str, request: Request):
+    """Make request to application"""
 
     key = make_key()
 
     dct: Dict[str, Any] = {}
 
-    # inject form data
-    dct.update(await request.form())
+    data = await request.body()
+    if len(data):
+        dct.update(await request.json())
 
     # inject query parameters
     dct.update(request.query_params)
+
+    definition = get_definition_manager().get(application)
+    validate(instance=dct, schema=definition.input_schema)
 
     # inject user information
     info = Result(
@@ -152,53 +148,19 @@ async def async_service(
         api=application,
         status=ActivityStatus.ACCEPTED,
     )
-
     accept_notification = Message(content=info.dict(), id=key)
     get_state().write(make_topic("result"), accept_notification)
 
-    # send job request to its appropriate topic
+    # send job request to its approporate topic
     info.status = ActivityStatus.PROCESSED
     dct.update(info.dict())
+
     get_state().write(make_topic(application), Message(content=dct, id=key))
-
-    operation_counter.labels(api=application, user=username, operation="accepted").inc()
-
-    activity = ActivityCreate(
-        request=f"/async/{application}",
-        username=username,
-        tier=tier,
-        status=ActivityStatus.ACCEPTED,
-        request_key=str(key),
-        result=str(info.dict()),
-        payload=str(dct),
-        ip_address=str(request.client.host),
-        latency=0.0,
-    )
-
-    def add_activity_task(activity):
-        with db_context() as session:
-            ActivityQuery(session).create_activity(activity)
-
-    background_tasks.add_task(add_activity_task, activity=activity)
-    return AsyncAPIRequestResponse(success=True, key=key)
+    return key
 
 
-@api.get(
-    "/async/{application}",
-    dependencies=[Depends(ip_rate_limited)],
-    include_in_schema=False,
-)
-async def async_service_result(
-    application: str,
-    key: str = Query(
-        ...,
-        title="unique key returned by a request",
-        example="91cb3a68-dd59-11ea-9f2a-82527949ac01",
-    ),
-    username=Depends(require_user),
-):
-    """ """
-
+def fetch_result(username: str, application: str, key: str):
+    """fetch result"""
     result = get_redis().get(key)
     if result is None:
         operation_counter.labels(
@@ -226,9 +188,68 @@ async def async_service_result(
             detail="Unexpected error happened",
         )
 
-    operation_counter.labels(
-        api=application, user=username, operation="result_served"
-    ).inc()
+    return result
+
+
+@api.post(
+    "/async/{application}",
+    include_in_schema=False,
+    response_model=AsyncAPIRequestResponse,
+    dependencies=[Depends(ip_rate_limited)],
+)
+async def async_service(
+    request: Request,
+    # background_tasks: BackgroundTasks,
+    subscription: SubscriptionBase = Depends(require_subscription),
+):
+    """generic handler for async api."""
+
+    username = subscription.username
+    tier = subscription.tier
+    application = subscription.application
+    operation_counter.labels(api=application, user=username, operation="received").inc()
+
+    key = await make_request(username, application, request)
+
+    operation_counter.labels(api=application, user=username, operation="accepted").inc()
+
+    # activity = ActivityCreate(
+    #     request=f"/async/{application}",
+    #     username=username,
+    #     tier=tier,
+    #     status=ActivityStatus.ACCEPTED,
+    #     request_key=str(key),
+    #     result=str(info.dict()),
+    #     payload=str(dct),
+    #     ip_address=str(request.client.host),
+    #     latency=0.0,
+    # )
+    #
+    # def add_activity_task(activity):
+    #     with db_context() as session:
+    #         ActivityQuery(session).create_activity(activity)
+    #
+    # background_tasks.add_task(add_activity_task, activity=activity)
+    return AsyncAPIRequestResponse(success=True, key=key)
+
+
+@api.get(
+    "/async/{application}",
+    dependencies=[Depends(ip_rate_limited)],
+    include_in_schema=False,
+)
+async def async_service_result(
+    application: str,
+    key: str = Query(
+        ...,
+        title="unique key returned by a request",
+        example="91cb3a68-dd59-11ea-9f2a-82527949ac01",
+    ),
+    username=Depends(require_user),
+):
+    """ """
+
+    result = fetch_result(username, application, request)
 
     return AsyncAPIResultResponse(
         success=True,
