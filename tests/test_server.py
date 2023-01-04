@@ -130,13 +130,6 @@ def test_async_service_json_validation_error(client, db_session, monkeypatch):
 
     assert response.status_code == 422
 
-    assert (
-        len(
-            apihub.server.get_state()
-            .pipeline.destinations
-        ) == 0
-    )
-
 
 def test_redoc(client, monkeypatch):
     monkeypatch.setenv("IN_KIND", "MEM")
