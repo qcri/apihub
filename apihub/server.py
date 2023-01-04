@@ -27,6 +27,7 @@ from .utils import (
 )
 from . import __worker__, __version__
 
+
 load_dotenv(override=False)
 
 monitor = Monitor()
@@ -265,6 +266,14 @@ def get_paths(redis=get_redis()):
         operation = {
             "tags": ["app"],
             "summary": definition.description,
+            "responses": {
+                "200": {
+                    "description": "OK",
+                },
+                "403": {
+                    "description": "You don't have the permission to use this API",
+                },
+            },
             "description": definition.description,
             "security": security,
         }
