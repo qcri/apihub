@@ -273,7 +273,12 @@ def extract_components(schema, components):
 def get_paths(redis=get_redis()):
     paths = {}
     components_schemas = {}
-    security_schemes = {}
+    security_schemes = {
+        "BasicAuth": {
+            "type": "http",
+            "scheme": "basic",
+        }
+    }
     definitions = DefinitionManager(redis=redis)
 
     for name, definition in definitions.get_all():
@@ -386,7 +391,7 @@ def custom_openapi(app=api):
     paths, components_schemas, security_schemes = get_paths()
     openapi_schema["paths"].update(paths)
     openapi_schema["components"]["schemas"].update(components_schemas)
-    openapi_schema["components"]["securitySchemes"] = security_schemes
+    openapi_schema["components"]["securitySchemes"].update(security_schemes)
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
