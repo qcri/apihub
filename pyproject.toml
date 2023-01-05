@@ -11,6 +11,10 @@ apihub_server = "apihub.server:main"
 apihub_result = "apihub.result:main"
 apihub_worker = "apihub.worker:main"
 apihub_cli = "apihub.cli:cli"
+apihub_admin = "apihub.admin:create_all_statements"
+
+[tool.poetry.group.dev.dependencies]
+openapi-spec-validator = "^0.5.1"
 
 [tool.black]
 line-length = 88
@@ -52,7 +56,7 @@ psycopg2-binary = "^2.8.6"
 SQLAlchemy = "^1.4.15"
 SQLAlchemy-Utils = "^0.37.4"
 python-multipart = "^0.0.5"
-jsonschema = "^3.2.0"
+jsonschema = "^4.0.0"
 typer = "^0.4.0"
 orjson = "^3.6.7"
 tanbih-pipeline = {extras = ["redis"], version = "^0.12.4"}
