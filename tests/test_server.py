@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from typing import Dict, Any
+from openapi_spec_validator import validate_spec, openapi_v30_spec_validator
 
 from apihub.common.db_session import create_session
 from apihub.subscription.depends import require_subscription
@@ -185,5 +186,4 @@ def test_openapi(client, monkeypatch):
     )
 
     schema = apihub.server.custom_openapi()
-
-    assert schema["info"]["title"] == "APIHub"
+    validate_spec(schema, validator=openapi_v30_spec_validator)

@@ -377,6 +377,9 @@ def custom_openapi(app=api):
         description="API for AI",
         routes=app.routes,
     )
+    openapi_schema["servers"] = [{
+        "url": settings.server,
+    }]
     openapi_schema["info"]["x-logo"] = {
         "url": "https://raw.githubusercontent.com/yifan/apihub/master/images/APIHub-logo.png"
     }
@@ -396,6 +399,9 @@ class ServerSettings(Settings):
     port: int = 5000
     log_level: str = "debug"
     reload: bool = True
+    server: str = "https://apihub.tanbih.org"
+
+settings = ServerSettings()
 
 
 def main():
@@ -403,7 +409,6 @@ def main():
 
     monitor.expose()
 
-    settings = ServerSettings()
     settings.parse_args(args=sys.argv)
     uvicorn.run(
         "apihub.server:api",
