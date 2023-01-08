@@ -388,6 +388,13 @@ def custom_openapi(app=api):
     openapi_schema["info"]["x-logo"] = {
         "url": "https://raw.githubusercontent.com/yifan/apihub/master/images/APIHub-logo.png"
     }
+
+    # patch security not defined in path
+    for path in openapi_schema["paths"].values():
+        for operation in path.values():
+            if "security" not in operation:
+                operation["security"] = [{"BasicAuth": []}]
+
     paths, components_schemas, security_schemes = get_paths()
     openapi_schema["paths"].update(paths)
     openapi_schema["components"]["schemas"].update(components_schemas)
