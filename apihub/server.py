@@ -274,9 +274,9 @@ def get_paths(redis=get_redis()):
     paths = {}
     components_schemas = {}
     security_schemes = {
-        "BasicAuth": {
+        "bearerAuth": {
             "type": "http",
-            "scheme": "basic",
+            "scheme": "bearer",
         }
     }
     definitions = DefinitionManager(redis=redis)
@@ -393,7 +393,7 @@ def custom_openapi(app=api):
     for path in openapi_schema["paths"].values():
         for operation in path.values():
             if "security" not in operation:
-                operation["security"] = [{"BasicAuth": []}]
+                operation["security"] = [{"bearerAuth": []}]
 
     paths, components_schemas, security_schemes = get_paths()
     openapi_schema["paths"].update(paths)
