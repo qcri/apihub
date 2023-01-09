@@ -51,22 +51,17 @@ class SubscriptionTier(str, Enum):
 class SubscriptionBase(BaseModel):
     username: str
     application: str
-    tier: str
+    tier: SubscriptionTier
 
 
-class SubscriptionIn(BaseModel):
-    username: str
-    application: str
-    tier: str
+class SubscriptionIn(SubscriptionBase):
     expires_at: Optional[datetime] = None
     recurring: bool = False
 
 
-class SubscriptionCreate(SubscriptionBase):
+class SubscriptionCreate(SubscriptionIn):
     credit: Optional[int] = 0
     starts_at: datetime = datetime.now()
-    expires_at: Optional[datetime] = None
-    recurring: bool = False
     active: bool = True
     created_by: str
     notes: Optional[str] = None
