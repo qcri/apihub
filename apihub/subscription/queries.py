@@ -13,7 +13,7 @@ from .schemas import (
     SubscriptionCreate,
     SubscriptionDetails,
     ApplicationCreate,
-    SubscriptionPricingCreate2,
+    SubscriptionPricingBase,
 )
 from .helpers import get_and_reset_balance_in_cache
 
@@ -84,7 +84,7 @@ class ApplicationQuery(BaseQuery):
             )
             for pricing in application.subscriptions_pricing:
                 application_create.pricing.append(
-                    SubscriptionPricingCreate2(
+                    SubscriptionPricingBase(
                         tier=pricing.tier,
                         price=pricing.price,
                         credit=pricing.credit,

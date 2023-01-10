@@ -24,7 +24,7 @@ from apihub.subscription.router import router
 from apihub.subscription.schemas import (
     SubscriptionIn,
     ApplicationCreate,
-    SubscriptionPricingCreate2,
+    SubscriptionPricingBase,
 )
 
 from apihub.security.helpers import hash_password
@@ -142,13 +142,13 @@ class TestApplication:
             url="/test",
             description="test",
             pricing=[
-                SubscriptionPricingCreate2(
+                SubscriptionPricingBase(
                     tier=SubscriptionTier.TRIAL, price=100, credit=100
                 ),
-                SubscriptionPricingCreate2(
+                SubscriptionPricingBase(
                     tier=SubscriptionTier.STANDARD, price=200, credit=200
                 ),
-                SubscriptionPricingCreate2(
+                SubscriptionPricingBase(
                     tier=SubscriptionTier.PREMIUM, price=300, credit=300
                 ),
             ],
