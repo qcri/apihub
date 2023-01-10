@@ -19,7 +19,7 @@ from .activity.queries import ActivityQuery
 from .security.depends import RateLimiter, RateLimits, require_user
 from .security.router import router as security_router
 from .subscription.depends import require_subscription
-from .subscription.router import router as application_router
+from .subscription.router import router as subscription_router
 from .subscription.schemas import SubscriptionBase
 from .utils import (
     State,
@@ -83,7 +83,7 @@ api.include_router(
     dependencies=[Depends(ip_rate_limited)],
 )
 api.include_router(
-    application_router, tags=["subscription"], dependencies=[Depends(ip_rate_limited)]
+    subscription_router, tags=["subscription"], dependencies=[Depends(ip_rate_limited)]
 )
 
 
