@@ -1,6 +1,6 @@
 from typing import List
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, DataError
 from sqlalchemy.orm.exc import NoResultFound
 
 from ..common.queries import BaseQuery
@@ -111,8 +111,8 @@ class UserQuery(BaseQuery):
         """
         try:
             users = self.get_query().filter(User.role == role)
-        except NoResultFound:
-            raise UserException
+        except (DataError, NoResultFound):
+            return []
 
         return [
             UserBase(
