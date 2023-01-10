@@ -121,9 +121,8 @@ async def change_password(
     query.change_password(username=current_user.username, password=password.password)
 
 
-@router.post("/user/{username}")
+@router.post("/user")
 async def create_user(
-    username: str,
     new_user: UserCreate,
     current_username: str = Depends(require_admin),
     session=Depends(create_session),
