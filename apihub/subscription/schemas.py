@@ -5,47 +5,33 @@ from enum import Enum
 from pydantic import BaseModel
 
 
-class ApplicationSchema(BaseModel):
+class SubscriptionTier(str, Enum):
+    TRIAL = "TRIAL"
+    STANDARD = "STANDARD"
+    PREMIUM = "PREMIUM"
+
+class SubscriptionPricingBase(BaseModel):
+    tier: SubscriptionTier
+    price: int
+    credit: int
+
+
+class SubscriptionPricingCreate(SubscriptionPricingBase):
+    application: str
+
+
+class SubscriptionPricingDetails(SubscriptionPricingCreate):
+    id: int
+
+
+class ApplicationBase(BaseModel):
     name: str
     url: str
     description: str
 
 
-class SubscriptionPricingCreate(BaseModel):
-    tier: str
-    price: int
-    credit: int
-    application: str
-
-
-class SubscriptionPricingCreate2(BaseModel):
-    tier: str
-    price: int
-    credit: int
-
-
-class ApplicationDetails(ApplicationSchema):
-    tier: str
-    price: int
-    credit: int
-
-
-class ApplicationCreate(ApplicationSchema):
-    pricing: List[SubscriptionPricingCreate2]
-
-
-class SubscriptionPricingDetails(BaseModel):
-    id: int
-    tier: str
-    price: int
-    credit: int
-    application: str
-
-
-class SubscriptionTier(str, Enum):
-    TRIAL = "TRIAL"
-    STANDARD = "STANDARD"
-    PREMIUM = "PREMIUM"
+class ApplicationCreate(ApplicationBase):
+    pricing: List[SubscriptionPricingBase]
 
 
 class SubscriptionBase(BaseModel):
