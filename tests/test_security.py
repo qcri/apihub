@@ -194,7 +194,7 @@ class TestAuthenticate:
             role="user",
         )
         response = client.post(
-            f"/user/{new_user.username}",
+            f"/user",
             headers={"Authorization": f"Bearer {token}"},
             json=new_user.dict(),
         )
