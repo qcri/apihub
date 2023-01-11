@@ -54,15 +54,17 @@ def create_application(
 @router.get("/application", response_model=List[ApplicationCreate])
 def get_applications(
         session: Session = Depends(create_session),
-        username: str = Depends(require_admin),
+        user: UserBase = Depends(require_token),
     ):
+    """
+    List all applications.
+    """
+
     try:
-        """
-        List all applications.
-        """
-        return ApplicationQuery(session).get_applications()
-    except ApplicationException:
-        raise HTTPException(400, "Error while retrieving applications")
+        applications = ApplicationQuery(session).get_applications()
+        return applications
+    except ApplicationException as e:
+        raise HTTPException(400, detail=str(e))
 
 
 @router.get("/application/{application}", response_model=ApplicationCreate)
@@ -163,10 +165,12 @@ def get_active_subscriptions(
         return []
 
     return [
-        SubscriptionTokenResponse(
+        SubscriptionIn(
             username=subscription.username,
             application=subscription.application,
-            expires_time=subscription.expires_at,
+            tier=subscription.tier,
+            expires_at=subscription.expires_at,
+            recurring=subscription.recurring,
         )
         for subscription in subscriptions
     ]

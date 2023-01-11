@@ -76,34 +76,17 @@ class ApplicationQuery(BaseQuery):
         """
         try:
             application = self.get_query().filter(Application.name == name).one()
-            application_create = ApplicationCreate(
-                name=application.name,
-                url=application.url,
-                description=application.description,
-                pricing=[],
-            )
-            for pricing in application.subscriptions_pricing:
-                application_create.pricing.append(
-                    SubscriptionPricingBase(
-                        tier=pricing.tier,
-                        price=pricing.price,
-                        credit=pricing.credit,
-                    )
-                )
-            return application_create
+            return application.to_schema(with_pricing=True)
         except NoResultFound:
             raise ApplicationException(f"Application {name} not found.")
 
-    def get_applications(self) -> List[ApplicationCreate]:
+    def get_applications(self, username=None) -> List[ApplicationCreate]:
         """
         List applications.
         :return: List of applications.
         """
-
-        return [
-            self.get_application(application.name)
-            for application in self.get_query().all()
-        ]
+        applications = map(lambda x: x.to_schema(), self.get_query().all())
+        return list(applications)
 
 
 class SubscriptionPricingQuery(BaseQuery):
@@ -285,6 +268,8 @@ class SubscriptionQuery(BaseQuery):
                 balance=subscription.balance,
                 expires_at=subscription.expires_at,
                 recurring=subscription.recurring,
+                created_by=subscription.created_by,
+                created_at=subscription.created_at,
             )
             for subscription in subscriptions
         ]

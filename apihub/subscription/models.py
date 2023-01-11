@@ -13,7 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from ..common.db_session import Base
-from .schemas import SubscriptionTier
+from .schemas import SubscriptionTier, ApplicationCreate, SubscriptionPricingCreate
 
 
 class Application(Base):
@@ -33,6 +33,19 @@ class Application(Base):
 
     def __str__(self):
         return f"{self.name} || {self.url}"
+
+    def to_schema(self, with_pricing=False) -> ApplicationCreate:
+        return ApplicationCreate(
+            name=self.name,
+            url=self.url,
+            description=self.description,
+            pricing=[
+                SubscriptionPricingCreate(
+                    tier=pricing.tier, price=pricing.price, credit=pricing.credit, application=self.name,
+                )
+                for pricing in self.subscriptions_pricing
+            ] if with_pricing else [],
+        )
 
 
 class SubscriptionPricing(Base):
