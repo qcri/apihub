@@ -16,6 +16,7 @@ from .schemas import (
     SubscriptionCreate,
     SubscriptionIn,
     ApplicationCreate,
+    ApplicationCreateWithOwner,
 )
 from .queries import (
     SubscriptionQuery,
@@ -40,13 +41,21 @@ class SubscriptionSettings(BaseSettings):
 def create_application(
         application: ApplicationCreate,
         session: Session = Depends(create_session),
-        username: str = Depends(require_admin),
+        user: UserBase = Depends(require_token),
     ):
     """
     Create an application.
     """
+    applicationCreateWithOwner = ApplicationCreateWithOwner.copy(
+        application,
+        update={"owner": user.username}
+    )
+
+    if not user.is_manager:
+        raise HTTPException(401, "Only developers can create applications.")
+
     try:
-        return ApplicationQuery(session).create_application(application)
+        return ApplicationQuery(session).create_application(applicationCreateWithOwner)
     except ApplicationException as e:
         raise HTTPException(status_code=400, detail=str(e))
 
