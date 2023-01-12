@@ -86,6 +86,18 @@ class SubscriptionFactory(factory.alchemy.SQLAlchemyModelFactory):
     notes = None
 
 
+def _require_admin_token():
+    return UserBase(username="tester", role=UserType.ADMIN)
+
+
+def _require_user_token():
+    return UserBase(username="tester", role=UserType.USER)
+
+
+def _require_manager_token():
+    return UserBase(username="tester", role=UserType.MANAGER)
+
+
 @pytest.fixture(scope="function")
 def client(db_session):
     def _create_session():
@@ -99,12 +111,6 @@ def client(db_session):
 
     def _require_user():
         return "user"
-
-    def _require_admin_token():
-        return UserBase(username="tester", role=UserType.ADMIN)
-
-    def _require_user_token():
-        return UserBase(username="tester", role=UserType.USER)
 
     app = FastAPI()
     app.include_router(router)
@@ -145,16 +151,9 @@ def client(db_session):
     yield TestClient(app)
 
 
-def _require_admin_token():
-    return UserBase(username="tester", role=UserType.ADMIN)
-
-
-def _require_user_token():
-    return UserBase(username="tester", role=UserType.USER)
-
-
 class TestApplication:
     def test_create_application(self, client):
+        client.app.dependency_overrides[require_token] = _require_manager_token
         new_application = ApplicationCreate(
             name="app",
             url="/test",

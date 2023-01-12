@@ -34,6 +34,10 @@ class ApplicationCreate(ApplicationBase):
     pricing: List[SubscriptionPricingBase]
 
 
+class ApplicationCreateWithOwner(ApplicationCreate):
+    owner: str
+
+
 class SubscriptionBase(BaseModel):
     username: str
     application: str
