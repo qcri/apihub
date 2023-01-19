@@ -28,6 +28,9 @@ class Application(Base):
     url = Column(String)
     description = Column(String)
 
+    created_at = Column(DateTime, default=datetime.now())
+    owner = Column(String, ForeignKey("users.username"))
+
     subscriptions = relationship("Subscription", backref="app")
     subscriptions_pricing = relationship("SubscriptionPricing", backref="app")
 

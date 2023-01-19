@@ -20,5 +20,6 @@ def hash_password(password, salt=None):
         password.encode("utf-8"),
         salt_,
         100000,
+        dklen=64,
     ).hex()
     return salt, hashed_password

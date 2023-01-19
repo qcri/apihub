@@ -43,6 +43,9 @@ class ApplicationFactory(factory.alchemy.SQLAlchemyModelFactory):
     url = factory.Sequence(lambda n: f"app/{n}")
     description = "description"
 
+    created_at = factory.LazyFunction(datetime.now)
+    owner = "tester"
+
 
 class SubscriptionPricingFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta:
