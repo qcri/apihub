@@ -13,6 +13,7 @@ from .schemas import (
     SubscriptionCreate,
     SubscriptionDetails,
     ApplicationCreate,
+    ApplicationCreateWithOwner,
     SubscriptionPricingBase,
 )
 from .helpers import get_and_reset_balance_in_cache
@@ -38,7 +39,7 @@ class ApplicationQuery(BaseQuery):
         """
         return self.session.query(Application)
 
-    def create_application(self, application: ApplicationCreate):
+    def create_application(self, application: ApplicationCreateWithOwner):
         """
         Create an application.
         :param application: Application details.
@@ -58,6 +59,7 @@ class ApplicationQuery(BaseQuery):
             name=application.name,
             url=application.url,
             description=application.description,
+            owner=application.owner,
             subscriptions_pricing=pricing_list,
         )
         try:
