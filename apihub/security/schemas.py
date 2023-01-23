@@ -7,7 +7,7 @@ from .helpers import hash_password
 
 class UserType(str, Enum):
     USER = "user"
-    MANAGER = "manager"
+    PUBLISHER = "publisher"
     APP = "app"
     ADMIN = "admin"
 
@@ -21,8 +21,8 @@ class UserBase(BaseModel):
         return self.role == UserType.ADMIN
 
     @property
-    def is_manager(self) -> bool:
-        return self.role == UserType.MANAGER
+    def is_publisher(self) -> bool:
+        return self.role == UserType.PUBLISHER
 
     @property
     def is_user(self) -> bool:

@@ -9,7 +9,7 @@ from ..common.db_session import create_session
 from ..security.schemas import (
     UserBase,
 )
-from ..security.depends import require_admin, require_token
+from ..security.depends import require_admin, require_publisher, require_token
 from ..security.queries import UserQuery, UserException
 
 from .schemas import (
@@ -41,18 +41,15 @@ class SubscriptionSettings(BaseSettings):
 def create_application(
         application: ApplicationCreate,
         session: Session = Depends(create_session),
-        user: UserBase = Depends(require_token),
+        username: str = Depends(require_publisher),
     ):
     """
     Create an application.
     """
     applicationCreateWithOwner = ApplicationCreateWithOwner.copy(
         application,
-        update={"owner": user.username}
+        update={"owner": username}
     )
-
-    if not user.is_manager:
-        raise HTTPException(401, "Only developers can create applications.")
 
     try:
         return ApplicationQuery(session).create_application(applicationCreateWithOwner)

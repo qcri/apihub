@@ -52,8 +52,8 @@ class UserOfRole:
     def __call__(self, Authorize: AuthJWT = Depends()):
         Authorize.jwt_required()
 
-        roles = Authorize.get_raw_jwt().get("roles", {})
-        if any(role in roles for role in self.roles):
+        role = Authorize.get_raw_jwt().get("role", "")
+        if role in self.roles:
             username = Authorize.get_jwt_subject()
             return username
 
@@ -65,16 +65,16 @@ class UserOfRole:
 
 def require_token(Authorize: AuthJWT = Depends()) -> UserBase:
     Authorize.jwt_required()
-    roles = Authorize.get_raw_jwt()["roles"]
+    role = Authorize.get_raw_jwt()["role"]
     username = Authorize.get_jwt_subject()
     return UserBase(
         username=username,
-        role=roles[0],
+        role=role,
     )
 
 
 require_admin = UserOfRole(role="admin")
-require_manager = UserOfRole(role="manager")
+require_publisher = UserOfRole(role="publisher")
 require_user = UserOfRole(role="user")
 require_app = UserOfRole(role="app")
-require_manager_or_admin = UserOfRole(roles=["admin", "manager"])
+require_publisher_or_admin = UserOfRole(roles=["admin", "publisher"])

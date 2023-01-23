@@ -76,8 +76,8 @@ def client(db_session):
         Authorize.jwt_required()
 
         user = Authorize.get_jwt_subject()
-        roles = Authorize.get_raw_jwt()["roles"]
-        return {"user": user, "roles": roles}
+        role = Authorize.get_raw_jwt()["role"]
+        return {"user": user, "role": role}
 
     @app.get("/admin")
     def admin(username=Depends(require_admin)):
@@ -90,7 +90,7 @@ def client(db_session):
 
     UserFactory(username="tester", role=UserType.USER)
     UserFactory(username="admin", role=UserType.ADMIN)
-    UserFactory(username="manager", role=UserType.MANAGER)
+    UserFactory(username="publisher", role=UserType.PUBLISHER)
     UserFactory(username="user", role=UserType.USER)
     UserFactory(username="app", role=UserType.APP)
 
@@ -149,17 +149,6 @@ class TestAuthenticate:
     def test_require_admin_when_admin(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("manager", "password"),
-        )
-        assert response.status_code == 200
-        auth_response = AuthenticateResponse.parse_obj(response.json())
-        token = auth_response.access_token
-        response = client.get("/admin", headers={"Authorization": f"Bearer {token}"})
-        assert response.status_code == 403
-
-    def test_require_admin_when_manager(self, client):
-        response = client.get(
-            "/_authenticate",
             headers=self._make_auth_header("admin", "password"),
         )
         assert response.status_code == 200
@@ -167,6 +156,17 @@ class TestAuthenticate:
         token = auth_response.access_token
         response = client.get("/admin", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
+
+    def test_require_admin_when_manager(self, client):
+        response = client.get(
+            "/_authenticate",
+            headers=self._make_auth_header("publisher", "password"),
+        )
+        assert response.status_code == 200
+        auth_response = AuthenticateResponse.parse_obj(response.json())
+        token = auth_response.access_token
+        response = client.get("/admin", headers={"Authorization": f"Bearer {token}"})
+        assert response.status_code == 403
 
     def test_create_and_get_user(self, client):
         response = client.get(
@@ -218,7 +218,7 @@ class TestAuthenticate:
         response = client.get(
             "/user",
             headers={"Authorization": f"Bearer {token}"},
-            json={"usernames": "admin,manager,user"},
+            json={"usernames": "admin,publisher,user"},
         )
         assert response.status_code == 200
         assert len(response.json()) == 3

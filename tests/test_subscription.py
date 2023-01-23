@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from apihub.common.db_session import create_session
 from apihub.security.models import User
 from apihub.security.schemas import UserBase, UserType
-from apihub.security.depends import require_user, require_admin, require_token
+from apihub.security.depends import require_user, require_admin, require_token, require_publisher
 from apihub.subscription.depends import (
     require_subscription_balance,
 )
@@ -97,7 +97,7 @@ def _require_user_token():
     return UserBase(username="tester", role=UserType.USER)
 
 
-def _require_manager_token():
+def _require_publisher_token():
     return UserBase(username="tester", role=UserType.MANAGER)
 
 
@@ -115,12 +115,16 @@ def client(db_session):
     def _require_user():
         return "user"
 
+    def _require_publisher():
+        return "publisher"
+
     app = FastAPI()
     app.include_router(router)
 
     app.dependency_overrides[create_session] = _create_session
     app.dependency_overrides[require_admin] = _require_admin
     app.dependency_overrides[require_user] = _require_user
+    app.dependency_overrides[require_publisher] = _require_publisher
     app.dependency_overrides[require_token] = _require_user_token
 
     @app.get("/api_balance/{application}")
@@ -132,6 +136,10 @@ def client(db_session):
     UserFactory._meta.sqlalchemy_session = db_session
     UserFactory._meta.sqlalchemy_session_persistence = "commit"
     UserFactory(username="tester", role=UserType.USER)
+
+    UserFactory._meta.sqlalchemy_session = db_session
+    UserFactory._meta.sqlalchemy_session_persistence = "commit"
+    UserFactory(username="publisher", role=UserType.PUBLISHER)
 
     ApplicationFactory._meta.sqlalchemy_session = db_session
     ApplicationFactory._meta.sqlalchemy_session_persistence = "commit"
@@ -156,7 +164,6 @@ def client(db_session):
 
 class TestApplication:
     def test_create_application(self, client):
-        client.app.dependency_overrides[require_token] = _require_manager_token
         new_application = ApplicationCreate(
             name="app",
             url="/test",
