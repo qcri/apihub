@@ -29,7 +29,7 @@ def get_config():
 
 class AuthenticateResponse(BaseModel):
     username: str
-    roles: List[str]
+    role: str
     access_token: str
     expires_time: int
 
@@ -49,8 +49,6 @@ async def _authenticate(
     except UserException:
         raise HTTPException(HTTP_403_FORBIDDEN, "User not found or wrong password")
 
-    roles = [user.role]
-
     # make sure the max expires_days won't exceed setting
     if expires_days > SecuritySettings().security_token_expires_time:
         expires_days = SecuritySettings().security_token_expires_time
@@ -59,12 +57,12 @@ async def _authenticate(
     expires_time = datetime.timedelta(days=expires_days)
     access_token = Authorize.create_access_token(
         subject=user.username,
-        user_claims={"roles": roles},
+        user_claims={"role": user.role},
         expires_time=expires_time,
     )
     return AuthenticateResponse(
         username=user.username,
-        roles=roles,
+        role=user.role,
         expires_time=expires_time.seconds,
         access_token=access_token,
     )
@@ -76,7 +74,7 @@ async def get_user(
     current_user: UserBase = Depends(require_token),
     session=Depends(create_session),
 ):
-    if current_user.is_admin or current_user.is_manager:
+    if current_user.is_admin or current_user.is_publisher:
         if username == "me":
             username = current_user.username
     elif username == "me":
@@ -158,7 +156,7 @@ async def change_password_admin(
 @router.post("/register")
 async def register_user(
     new_user: UserRegister,
-    current_username: str = Depends(require_app),
+    current_username: str = Depends(require_app),   # FIXME
     session=Depends(create_session),
 ):
     query = UserQuery(session)
