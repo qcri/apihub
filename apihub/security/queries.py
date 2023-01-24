@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy.exc import IntegrityError, DataError
 from sqlalchemy.orm.exc import NoResultFound
@@ -28,26 +28,30 @@ class UserQuery(BaseQuery):
         :param user_id: integer id
         :return: UserSession object.
         """
-        user = self.get_query().filter(User.id == user_id).one()
-        return UserSession(
-            id=user.id,
-            username=user.username,
-            role=user.role,
-            salt=user.salt,
-            hashed_password=user.hashed_password,
-        )
+        try:
+            user = self.get_query().filter(User.id == user_id).one()
+            return UserSession(
+                id=user.id,
+                name=user.name,
+                email=user.email,
+                role=user.role,
+                salt=user.salt,
+                hashed_password=user.hashed_password,
+            )
+        except NoResultFound:
+            raise UserException("User not found.")
 
-    def get_user_by_username_and_password(
-        self, username: str, password: str
+    def get_user_by_email_and_password(
+        self, email: str, password: str
     ) -> UserSession:
         """
-        Get user by username and password.
-        :param username: str
+        Get user by email and password.
+        :param email: str
         :param password: str
         :return: UserSession object.
         """
         try:
-            user = self.get_query().filter(User.username == username).one()
+            user = self.get_query().filter(User.email == email).one()
         except NoResultFound:
             raise UserException
 
@@ -55,47 +59,50 @@ class UserQuery(BaseQuery):
         if user.hashed_password == hashed_password:
             return UserSession(
                 id=user.id,
-                username=user.username,
+                name=user.name,
+                email=user.email,
                 role=user.role,
                 salt=user.salt,
                 hashed_password=user.hashed_password,
             )
         raise UserException
 
-    def get_user_by_username(self, username: str) -> UserSession:
+    def get_user_by_email(self, email: str) -> UserSession:
         """
-        Get user by username.
-        :param username: str
+        Get user by email.
+        :param email: str
         :return: UserSession object.
         """
         try:
-            user = self.get_query().filter(User.username == username).one()
+            user = self.get_query().filter(User.email == email).one()
         except NoResultFound:
             raise UserException
 
         return UserSession(
             id=user.id,
-            username=user.username,
+            name=user.name,
+            email=user.email,
             role=user.role,
             salt=user.salt,
             hashed_password=user.hashed_password,
         )
 
-    def get_users_by_usernames(self, usernames: List[str]) -> List[UserSession]:
+    def get_users_by_emails(self, emails: List[str]) -> List[UserSession]:
         """
-        Get users by usernames.
-        :param usernames: str
+        Get users by emails.
+        :param emails: str
         :return: list of UserSession object.
         """
         try:
-            users = self.get_query().filter(User.username.in_(usernames))
+            users = self.get_query().filter(User.email.in_(emails))
         except NoResultFound:
             raise UserException
 
         return [
             UserSession(
                 id=user.id,
-                username=user.username,
+                name=user.name,
+                email=user.email,
                 role=user.role,
                 salt=user.salt,
                 hashed_password=user.hashed_password,
@@ -116,13 +123,14 @@ class UserQuery(BaseQuery):
 
         return [
             UserBase(
-                username=user.username,
+                name=user.name,
+                email=user.email,
                 role=user.role,
             )
             for user in users
         ]
 
-    def create_user(self, user: UserCreate) -> bool:
+    def create_user(self, user: UserCreate) -> Optional[int]:
         """
         Create a new user.
         :param user: UserCreate object.
@@ -136,19 +144,19 @@ class UserQuery(BaseQuery):
             self.session.rollback()
             return False
 
-        return True
+        return db_user.id
 
-    def change_password(self, username: str, password: str) -> bool:
+    def change_password(self, email: str, password: str) -> bool:
         """
         Change password for a user.
-        :param username: str
+        :param email: str
         :param password: str
         :return: boolean.
         """
         try:
-            user_in_db = self.get_query().filter(User.username == username).one()
+            user_in_db = self.get_query().filter(User.email == email).one()
         except NoResultFound:
-            raise UserException
+            raise UserException(f"User {email} not found")
 
         _, hashed_password = hash_password(password, salt=user_in_db.salt)
         user_in_db.hashed_password = hashed_password

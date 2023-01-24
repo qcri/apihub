@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from fastapi import HTTPException, Depends, Request
 from fastapi_jwt_auth import AuthJWT
 
-from .schemas import UserBase
+from .schemas import UserBaseWithId
 
 
 HTTP_429_TOO_MANY_REQUESTS = 429
@@ -52,10 +52,18 @@ class UserOfRole:
     def __call__(self, Authorize: AuthJWT = Depends()):
         Authorize.jwt_required()
 
-        role = Authorize.get_raw_jwt().get("role", "")
+        claims = Authorize.get_raw_jwt()
+        role = claims.get("role", "")
         if role in self.roles:
-            username = Authorize.get_jwt_subject()
-            return username
+            name = claims.get("name", "")
+            email = Authorize.get_jwt_subject()
+            user_id = claims.get("id", "")
+            return UserBaseWithId(
+                id=user_id,
+                name=name,
+                email=email,
+                role=role,
+            )
 
         raise HTTPException(
             HTTP_403_FORBIDDEN,
@@ -63,12 +71,17 @@ class UserOfRole:
         )
 
 
-def require_token(Authorize: AuthJWT = Depends()) -> UserBase:
+def require_token(Authorize: AuthJWT = Depends()) -> UserBaseWithId:
     Authorize.jwt_required()
-    role = Authorize.get_raw_jwt()["role"]
-    username = Authorize.get_jwt_subject()
-    return UserBase(
-        username=username,
+    claims  = Authorize.get_raw_jwt()
+    role = claims.get("role", "")
+    name = claims.get("name", "")
+    email = Authorize.get_jwt_subject()
+    user_id = claims.get("id", "")
+    return UserBaseWithId(
+        id=user_id,
+        name=name,
+        email=email,
         role=role,
     )
 
@@ -78,3 +91,4 @@ require_publisher = UserOfRole(role="publisher")
 require_user = UserOfRole(role="user")
 require_app = UserOfRole(role="app")
 require_publisher_or_admin = UserOfRole(roles=["admin", "publisher"])
+require_logged_in = UserOfRole(roles=["admin", "publisher", "user", "app"])

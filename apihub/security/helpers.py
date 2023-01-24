@@ -1,6 +1,8 @@
 import os
+import datetime
 import hashlib
 from base64 import b64encode, b64decode
+from fastapi_jwt_auth import AuthJWT
 
 
 def hash_password(password, salt=None):
@@ -23,3 +25,13 @@ def hash_password(password, salt=None):
         dklen=64,
     ).hex()
     return salt, hashed_password
+
+
+def make_token(user, expires_time):
+    Authorize = AuthJWT()
+    access_token = Authorize.create_access_token(
+        subject=user.email,
+        user_claims={"role": user.role, "name": user.name, "id": user.id},
+        expires_time=expires_time,
+    )
+    return access_token

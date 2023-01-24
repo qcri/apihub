@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from fastapi import HTTPException, Depends
 from fastapi_jwt_auth import AuthJWT
 from redis import Redis
@@ -5,7 +6,6 @@ from redis import Redis
 from ..common.db_session import create_session
 from ..common.redis_session import redis_conn
 
-from .schemas import SubscriptionBase
 from .queries import SubscriptionQuery
 from .helpers import make_key, BALANCE_KEYS
 
@@ -14,9 +14,18 @@ HTTP_403_FORBIDDEN = 403
 HTTP_429_QUOTA = 429
 
 
+class SubscriptionResponse(BaseModel):
+    user_id: int
+    subscription_id: int
+    application_id: int
+    email: str
+    tier: str
+    application: str
+
+
 def require_subscription(
     application: str, Authorize: AuthJWT = Depends()
-) -> SubscriptionBase:
+) -> SubscriptionResponse:
     """
     This function is used to check if the user has a valid subscription token.
     :param application: str
@@ -24,43 +33,46 @@ def require_subscription(
     :return: SubscriptionBase object.
     """
     Authorize.jwt_required()
-    username = Authorize.get_jwt_subject()
-
+    email = Authorize.get_jwt_subject()
     claims = Authorize.get_raw_jwt()
-    subscription_claim = claims.get("subscription")
-    tier_claim = claims.get("tier")
-    if subscription_claim != application:
+    subscription = claims.get("subscription")
+    tier = claims.get("tier")
+    if  subscription != application:
         raise HTTPException(
             HTTP_403_FORBIDDEN,
             "The API key doesn't have permission to perform the request",
         )
-    return SubscriptionBase(
-        username=username, tier=tier_claim, application=subscription_claim
+    user_id = claims.get("use_id", -1)
+    subscription_id = claims.get("subscription_id", -1)
+    application_id = claims.get("application_id", -1)
+    return SubscriptionResponse(
+        user_id=user_id, subscription_id=subscription_id,
+        email=email, tier=tier, application=subscription,
+        application_id=application_id,
     )
 
 
 def require_subscription_balance(
-    subscription: SubscriptionBase = Depends(require_subscription),
+    subscription: SubscriptionResponse = Depends(require_subscription),
     redis: Redis = Depends(redis_conn),
     session=Depends(create_session),
-) -> str:
+) -> SubscriptionResponse:
     """
     This function is used to check if the user has enough balance to perform.
     :param subscription: str
     :param redis: Redis object.
     :param session: Session object.
-    :return: username str.
+    :return: email str.
     """
-    username = subscription.username
-    tier = subscription.tier
-    application = subscription.application
-
-    key = make_key(username, application, tier)
+    key = make_key(subscription)
     balance = redis.decr(key)
+    
 
-    if balance == -1:
-        subscription = SubscriptionQuery(session).get_active_subscription(
-            username, application
+    print("balance", balance)
+
+    if balance is None or balance == -1:
+        subscription = SubscriptionQuery(session).get_subscription(
+            subscription.subscription_id
         )
         balance = subscription.credit - subscription.balance - 1
         if balance > 0:
@@ -69,7 +81,7 @@ def require_subscription_balance(
 
     if balance <= 0:
         SubscriptionQuery(session).update_balance_in_subscription(
-            username, application, tier, redis
+            subscription, redis
         )
 
     if balance < 0:
@@ -78,4 +90,4 @@ def require_subscription_balance(
             "You have used up all credit for this API",
         )
 
-    return username
+    return subscription

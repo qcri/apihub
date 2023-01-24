@@ -29,7 +29,8 @@ class UserFactory(factory.alchemy.SQLAlchemyModelFactory):
         model = User
 
     id = factory.Sequence(int)
-    username = factory.Sequence(lambda n: f"tester{n}")
+    name = factory.Sequence(lambda n: f"Mr. Tester{n}")
+    email = factory.Sequence(lambda n: f"tester{n}@tester.com")
     salt = SALT
     hashed_password = itemgetter(1)(hash_password("password", salt=SALT))
     role = UserType.USER
@@ -40,18 +41,18 @@ def test_user_create(db_session):
     query = UserQuery(db_session)
     query.create_user(
         user=UserCreate(
-            username="tester",
+            name="Mr. Tester",
             email="newuser@test.com",
             password="testpassword",
             role=UserType.USER,
         )
     )
 
-    user = query.get_user_by_username(username="tester")
+    user = query.get_user_by_email(email="newuser@test.com")
     assert user is not None
 
     another_user = query.get_user_by_id(user_id=user.id)
-    assert user.username == another_user.username
+    assert user.email == another_user.email
 
 
 @pytest.fixture(scope="function")
@@ -80,48 +81,48 @@ def client(db_session):
         return {"user": user, "role": role}
 
     @app.get("/admin")
-    def admin(username=Depends(require_admin)):
-        return username
+    def admin(email=Depends(require_admin)):
+        return email
 
     app.dependency_overrides[create_session] = _create_session
 
     UserFactory._meta.sqlalchemy_session = db_session
     UserFactory._meta.sqlalchemy_session_persistence = "commit"
 
-    UserFactory(username="tester", role=UserType.USER)
-    UserFactory(username="admin", role=UserType.ADMIN)
-    UserFactory(username="publisher", role=UserType.PUBLISHER)
-    UserFactory(username="user", role=UserType.USER)
-    UserFactory(username="app", role=UserType.APP)
+    UserFactory(email="tester@test.com", role=UserType.USER)
+    UserFactory(email="admin@test.com", role=UserType.ADMIN)
+    UserFactory(email="publisher@test.com", role=UserType.PUBLISHER)
+    UserFactory(email="user@test.com", role=UserType.USER)
+    UserFactory(email="app@test.com", role=UserType.APP)
 
     yield TestClient(app)
 
 
 class TestAuthenticate:
-    def _make_auth_header(self, username, password):
+    def _make_auth_header(self, email, password):
         from base64 import b64encode
 
-        raw = b64encode(f"{username}:{password}".encode("ascii")).decode("ascii")
+        raw = b64encode(f"{email}:{password}".encode("ascii")).decode("ascii")
         return {"Authorization": f"Basic {raw}"}
 
     def test_authenticate_wrong_user(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("nosuchuser", "password"),
+            headers=self._make_auth_header("nosuchuser@test.com", "password"),
         )
         assert response.status_code == 403
 
     def test_authenticate_wrong_password(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("tester", "nosuchpassword"),
+            headers=self._make_auth_header("tester@test.com", "nosuchpassword"),
         )
         assert response.status_code == 403
 
     def test_authenticate(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("tester", "password"),
+            headers=self._make_auth_header("tester@test.com", "password"),
             params={"expires_days": 2},
         )
         assert response.status_code == 200
@@ -136,7 +137,7 @@ class TestAuthenticate:
     def test_token(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("tester", "password"),
+            headers=self._make_auth_header("tester@test.com", "password"),
         )
         assert response.status_code == 200
         auth_response = AuthenticateResponse.parse_obj(response.json())
@@ -149,7 +150,7 @@ class TestAuthenticate:
     def test_require_admin_when_admin(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("admin", "password"),
+            headers=self._make_auth_header("admin@test.com", "password"),
         )
         assert response.status_code == 200
         auth_response = AuthenticateResponse.parse_obj(response.json())
@@ -160,7 +161,7 @@ class TestAuthenticate:
     def test_require_admin_when_manager(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("publisher", "password"),
+            headers=self._make_auth_header("publisher@test.com", "password"),
         )
         assert response.status_code == 200
         auth_response = AuthenticateResponse.parse_obj(response.json())
@@ -171,24 +172,18 @@ class TestAuthenticate:
     def test_create_and_get_user(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("admin", "password"),
+            headers=self._make_auth_header("admin@test.com", "password"),
         )
         assert response.status_code == 200
         auth_response = AuthenticateResponse.parse_obj(response.json())
         token = auth_response.access_token
 
-        response = client.get("/user/me", headers={"Authorization": f"Bearer {token}"})
+        response = client.get("/user", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
-        assert response.json().get("username") == "admin"
-
-        response = client.get(
-            "/user/user", headers={"Authorization": f"Bearer {token}"}
-        )
-        assert response.status_code == 200
-        assert response.json().get("username") == "user"
+        assert response.json().get("email") == "admin@test.com"
 
         new_user = UserCreate(
-            username="newuser",
+            name="New User",
             email="newuser@test.com",
             password="password",
             role="user",
@@ -199,17 +194,25 @@ class TestAuthenticate:
             json=new_user.dict(),
         )
         assert response.status_code == 200
-
+        
         response = client.get(
-            f"/user/{new_user.username}", headers={"Authorization": f"Bearer {token}"}
+            "/_authenticate",
+            headers=self._make_auth_header("newuser@test.com", "password"),
         )
         assert response.status_code == 200
-        assert response.json().get("username") == new_user.username
+        auth_response = AuthenticateResponse.parse_obj(response.json())
+        token = auth_response.access_token
+
+        response = client.get(
+            f"/user", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 200
+        assert response.json().get("email") == new_user.email
 
     def test_get_users(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("admin", "password"),
+            headers=self._make_auth_header("admin@test.com", "password"),
         )
         assert response.status_code == 200
         auth_response = AuthenticateResponse.parse_obj(response.json())
@@ -218,7 +221,7 @@ class TestAuthenticate:
         response = client.get(
             "/user",
             headers={"Authorization": f"Bearer {token}"},
-            json={"usernames": "admin,publisher,user"},
+            json={"emails": "admin@test.com,publisher@test.com,user@test.com"},
         )
         assert response.status_code == 200
         assert len(response.json()) == 3
@@ -226,7 +229,7 @@ class TestAuthenticate:
     def test_list_users(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("admin", "password"),
+            headers=self._make_auth_header("admin@test.com", "password"),
         )
         assert response.status_code == 200
         auth_response = AuthenticateResponse.parse_obj(response.json())
@@ -242,7 +245,7 @@ class TestAuthenticate:
     def test_change_password_user(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("user", "password"),
+            headers=self._make_auth_header("user@test.com", "password"),
         )
         assert response.status_code == 200
         auth_response = AuthenticateResponse.parse_obj(response.json())
@@ -257,13 +260,13 @@ class TestAuthenticate:
 
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("user", "password"),
+            headers=self._make_auth_header("user@test.com", "password"),
         )
         assert response.status_code == 403
 
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("user", "newpassword"),
+            headers=self._make_auth_header("user@test.com", "newpassword"),
         )
         assert response.status_code == 200
 
@@ -277,7 +280,7 @@ class TestAuthenticate:
     def test_change_password_admin(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("admin", "password"),
+            headers=self._make_auth_header("admin@test.com", "password"),
         )
         assert response.status_code == 200
         auth_response = AuthenticateResponse.parse_obj(response.json())
@@ -285,12 +288,12 @@ class TestAuthenticate:
 
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("user", "password"),
+            headers=self._make_auth_header("user@test.com", "password"),
         )
         assert response.status_code == 200
 
         response = client.post(
-            "/user/user/_password",
+            "/user/user@test.com/_password",
             headers={"Authorization": f"Bearer {token}"},
             json={"password": "newpassword"},
         )
@@ -298,18 +301,18 @@ class TestAuthenticate:
 
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("user", "password"),
+            headers=self._make_auth_header("user@test.com", "password"),
         )
         assert response.status_code == 403
 
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("user", "newpassword"),
+            headers=self._make_auth_header("user@test.com", "newpassword"),
         )
         assert response.status_code == 200
 
         response = client.post(
-            "/user/user/_password",
+            "/user/user@test.com/_password",
             headers={"Authorization": f"Bearer {token}"},
             json={"password": "password"},
         )
@@ -318,14 +321,14 @@ class TestAuthenticate:
     def test_register(self, client):
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("app", "password"),
+            headers=self._make_auth_header("app@test.com", "password"),
         )
         assert response.status_code == 200
         auth_response = AuthenticateResponse.parse_obj(response.json())
         token = auth_response.access_token
 
         new_user = UserRegister(
-            username="newuser",
+            name="New User",
             email="newuser@test.com",
             password="password",
         )
@@ -338,12 +341,12 @@ class TestAuthenticate:
 
         response = client.get(
             "/_authenticate",
-            headers=self._make_auth_header("newuser", "password"),
+            headers=self._make_auth_header("newuser@test.com", "password"),
         )
         assert response.status_code == 200
         auth_response = AuthenticateResponse.parse_obj(response.json())
         token = auth_response.access_token
 
-        response = client.get("/user/me", headers={"Authorization": f"Bearer {token}"})
+        response = client.get("/user", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
-        assert response.json().get("username") == new_user.username
+        assert response.json().get("email") == new_user.email

@@ -13,7 +13,8 @@ class UserType(str, Enum):
 
 
 class UserBase(BaseModel):
-    username: str
+    email: str
+    name: str
     role: UserType
 
     @property
@@ -33,14 +34,17 @@ class UserBase(BaseModel):
         return self.role == UserType.APP
 
 
+class UserBaseWithId(UserBase):
+    id: int
+
+
 class UserRegister(BaseModel):
-    username: str
+    name: str
     email: str
     password: str
 
 
 class UserCreate(UserBase):
-    email: str
     password: str
 
     def make_user(self):
@@ -50,7 +54,7 @@ class UserCreate(UserBase):
         """
         salt, hashed_password = hash_password(self.password)
         return UserCreateHashed(
-            username=self.username,
+            name=self.name,
             email=self.email,
             salt=salt,
             hashed_password=hashed_password,

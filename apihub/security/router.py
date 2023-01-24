@@ -9,6 +9,7 @@ from ..common.db_session import create_session
 from .schemas import UserCreate, UserBase, UserRegister, UserType
 from .queries import UserQuery, UserException
 from .depends import require_token, require_admin, require_app
+from .helpers import make_token
 
 
 security = HTTPBasic()
@@ -28,7 +29,7 @@ def get_config():
 
 
 class AuthenticateResponse(BaseModel):
-    username: str
+    email: str
     role: str
     access_token: str
     expires_time: int
@@ -42,8 +43,8 @@ async def _authenticate(
 ):
     query = UserQuery(session)
     try:
-        user = query.get_user_by_username_and_password(
-            username=credentials.username,
+        user = query.get_user_by_email_and_password(
+            email=credentials.username,
             password=credentials.password,
         )
     except UserException:
@@ -53,55 +54,44 @@ async def _authenticate(
     if expires_days > SecuritySettings().security_token_expires_time:
         expires_days = SecuritySettings().security_token_expires_time
 
-    Authorize = AuthJWT()
     expires_time = datetime.timedelta(days=expires_days)
-    access_token = Authorize.create_access_token(
-        subject=user.username,
-        user_claims={"role": user.role},
-        expires_time=expires_time,
-    )
+
+    Authorize = AuthJWT()
+    access_token = make_token(user, expires_time)
     return AuthenticateResponse(
-        username=user.username,
+        email=user.email,
         role=user.role,
         expires_time=expires_time.seconds,
         access_token=access_token,
     )
 
 
-@router.get("/user/{username}")
+@router.get("/user")
 async def get_user(
-    username: str,
-    current_user: UserBase = Depends(require_token),
+    user: UserBase = Depends(require_token),
     session=Depends(create_session),
 ):
-    if current_user.is_admin or current_user.is_publisher:
-        if username == "me":
-            username = current_user.username
-    elif username == "me":
-        username = current_user.username
-    else:
-        raise HTTPException(HTTP_403_FORBIDDEN, "You have no permission")
-
     query = UserQuery(session)
-    user = query.get_user_by_username(username=username)
+    user = query.get_user_by_email(email=user.email)
     return UserBase(
-        username=user.username,
+        name=user.name,
+        email=user.email,
         role=user.role,
     )
 
 
 class GetUserAdminIn(BaseModel):
-    usernames: str
+    emails: str
 
 
 @router.get("/user")
 async def get_user_admin(
-    usernames: GetUserAdminIn,
-    current_username: str = Depends(require_admin),
+    group: GetUserAdminIn,
+    admin: str = Depends(require_admin),
     session=Depends(create_session),
 ):
     query = UserQuery(session)
-    users = query.get_users_by_usernames(usernames=usernames.usernames.split(","))
+    users = query.get_users_by_emails(emails=group.emails.split(","))
     return [UserBase(**user.dict()) for user in users]
 
 
@@ -112,21 +102,21 @@ class ChangePasswordIn(BaseModel):
 @router.post("/user/_password")
 async def change_password(
     password: ChangePasswordIn,
-    current_user: UserBase = Depends(require_token),
+    user: UserBase = Depends(require_token),
     session=Depends(create_session),
 ):
     query = UserQuery(session)
-    query.change_password(username=current_user.username, password=password.password)
+    query.change_password(email=user.email, password=password.password)
 
 
 @router.post("/user")
 async def create_user(
-    new_user: UserCreate,
-    current_username: str = Depends(require_admin),
+    user: UserCreate,
+    admin: str = Depends(require_admin),
     session=Depends(create_session),
 ):
     query = UserQuery(session)
-    query.create_user(new_user)
+    query.create_user(user)
     # TODO handling results
     return {}
 
@@ -134,7 +124,7 @@ async def create_user(
 @router.get("/users/{role}")
 async def list_users(
     role: str,
-    current_username: str = Depends(require_admin),
+    admin: str = Depends(require_admin),
     session=Depends(create_session),
 ):
     query = UserQuery(session)
@@ -142,29 +132,29 @@ async def list_users(
     return users
 
 
-@router.post("/user/{username}/_password")
+@router.post("/user/{email}/_password")
 async def change_password_admin(
-    username: str,
+    email: str,
     password: ChangePasswordIn,
-    current_username: str = Depends(require_admin),
+    admin: str = Depends(require_admin),
     session=Depends(create_session),
 ):
     query = UserQuery(session)
-    query.change_password(username=username, password=password.password)
+    query.change_password(email=email, password=password.password)
 
 
 @router.post("/register")
 async def register_user(
-    new_user: UserRegister,
-    current_username: str = Depends(require_app),   # FIXME
+    user: UserRegister,
+    app: str = Depends(require_app),   # FIXME
     session=Depends(create_session),
 ):
     query = UserQuery(session)
     query.create_user(
         UserCreate(
-            username=new_user.username,
-            email=new_user.email,
-            password=new_user.password,
+            name=user.name,
+            email=user.email,
+            password=user.password,
             role=UserType.USER,
         )
     )

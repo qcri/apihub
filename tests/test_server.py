@@ -8,8 +8,8 @@ from typing import Dict, Any
 from openapi_spec_validator import validate_spec, openapi_v30_spec_validator
 
 from apihub.common.db_session import create_session
-from apihub.subscription.depends import require_subscription
-from apihub.subscription.schemas import SubscriptionTier, SubscriptionBase
+from apihub.subscription.depends import require_subscription, SubscriptionResponse
+from apihub.subscription.schemas import SubscriptionTier
 from apihub.utils import make_topic
 
 
@@ -22,8 +22,9 @@ def client(monkeypatch):
         pass
 
     def _require_subscription(application:str):
-        return SubscriptionBase(
-            username="test", tier=SubscriptionTier.TRIAL, application=application,
+        return SubscriptionResponse(
+            user_id=1, subscription_id=1, application_id=1,
+            email="user@test.com", tier=SubscriptionTier.TRIAL, application="test",
         )
 
     monkeypatch.setenv("OUT_KIND", "MEM")

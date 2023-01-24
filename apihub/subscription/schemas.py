@@ -10,17 +10,17 @@ class SubscriptionTier(str, Enum):
     STANDARD = "STANDARD"
     PREMIUM = "PREMIUM"
 
-class SubscriptionPricingBase(BaseModel):
+class PricingBase(BaseModel):
     tier: SubscriptionTier
     price: int
     credit: int
 
 
-class SubscriptionPricingCreate(SubscriptionPricingBase):
+class PricingCreate(PricingBase):
     application: str
 
 
-class SubscriptionPricingDetails(SubscriptionPricingCreate):
+class PricingDetails(PricingCreate):
     id: int
 
 
@@ -31,20 +31,25 @@ class ApplicationBase(BaseModel):
 
 
 class ApplicationCreate(ApplicationBase):
-    pricing: List[SubscriptionPricingBase]
+    pricings: List[PricingBase]
 
 
 class ApplicationCreateWithOwner(ApplicationCreate):
-    owner: str
+    owner_id: int
+
+
+class ApplicationDetailsWithId(ApplicationCreateWithOwner):
+    id: int
 
 
 class SubscriptionBase(BaseModel):
-    username: str
-    application: str
+    owner_id: int
+    application_id: int
     tier: SubscriptionTier
 
 
 class SubscriptionIn(SubscriptionBase):
+    pricing_id: int
     expires_at: Optional[datetime] = None
     recurring: bool = False
 
@@ -52,12 +57,10 @@ class SubscriptionIn(SubscriptionBase):
 class SubscriptionCreate(SubscriptionIn):
     credit: Optional[int] = 0
     starts_at: datetime = datetime.now()
-    active: bool = True
-    created_by: str
     notes: Optional[str] = None
-    application: str
 
 
 class SubscriptionDetails(SubscriptionCreate):
+    id: int
     created_at: datetime
     balance: int
