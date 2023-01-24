@@ -7,9 +7,9 @@ from fastapi_jwt_auth import AuthJWT
 
 from ..common.db_session import create_session
 from ..security.schemas import (
-    UserBase,
+    UserBaseWithId,
 )
-from ..security.depends import require_admin, require_publisher, require_token
+from ..security.depends import require_admin, require_publisher, require_token, require_user, require_logged_in
 from ..security.queries import UserQuery, UserException
 
 from .schemas import (
@@ -21,7 +21,7 @@ from .schemas import (
 from .queries import (
     SubscriptionQuery,
     SubscriptionException,
-    SubscriptionPricingException,
+    PricingException,
     ApplicationQuery,
     ApplicationException,
 )
@@ -41,14 +41,14 @@ class SubscriptionSettings(BaseSettings):
 def create_application(
         application: ApplicationCreate,
         session: Session = Depends(create_session),
-        username: str = Depends(require_publisher),
+        publisher: str = Depends(require_publisher),
     ):
     """
     Create an application.
     """
     applicationCreateWithOwner = ApplicationCreateWithOwner.copy(
         application,
-        update={"owner": username}
+        update={"owner": publisher}
     )
 
     try:
@@ -60,7 +60,7 @@ def create_application(
 @router.get("/application", response_model=List[ApplicationCreate])
 def get_applications(
         session: Session = Depends(create_session),
-        user: UserBase = Depends(require_token),
+        user: str = Depends(require_logged_in),
     ):
     """
     List all applications.
@@ -77,44 +77,44 @@ def get_applications(
 def get_application(
         application: str,
         session: Session = Depends(create_session),
-        username: str = Depends(require_admin),
+        user: str = Depends(require_logged_in),
     ):
     try:
         """
         Get an application.
         """
-        return ApplicationQuery(session).get_application(application)
+        return ApplicationQuery(session).get_application_by_name(application)
     except ApplicationException:
-        raise HTTPException(400, "Error while retrieving applications")
+        raise HTTPException(400, f"Error while retrieving application {application}")
 
 
 @router.post("/subscription")
 def create_subscription(
     subscription: SubscriptionIn,
-    username: str = Depends(require_admin),
+    admin: str = Depends(require_admin),
     session=Depends(create_session),
 ):
-    # make sure the username exists.
+    # make sure the email exists.
     try:
-        UserQuery(session).get_user_by_username(subscription.username)
+        UserQuery(session).get_user_by_id(subscription.owner_id)
     except UserException:
-        raise HTTPException(401, f"User {subscription.username} not found.")
+        raise HTTPException(401, f"User {subscription.owner_id} not found.")
 
     # make sure the application is not currently active.
     try:
         SubscriptionQuery(session).get_active_subscription(
-            subscription.username, subscription.application
+            subscription.owner_id, subscription.application_id
         )
         raise HTTPException(
-            403, f"Application {subscription.application} already exists."
+            403, f"Subscription for applicaiton {subscription.application_id} already exists."
         )
     except SubscriptionException:
         pass
 
     try:
-        ApplicationQuery(session).get_application(subscription.application)
+        ApplicationQuery(session).get_application(subscription.application_id)
     except ApplicationException:
-        raise HTTPException(404, f"Application {subscription.application} not found.")
+        raise HTTPException(404, f"Application {subscription.application_id} not found.")
 
     if subscription.expires_at is None:
         subscription.expires_at = datetime.now() + timedelta(
@@ -122,13 +122,13 @@ def create_subscription(
         )
 
     subscription_create = SubscriptionCreate(
-        username=subscription.username,
-        application=subscription.application,
+        owner_id=subscription.owner_id,
+        application_id=subscription.application_id,
+        pricing_id=subscription.pricing_id,
         tier=subscription.tier,
         starts_at=datetime.now(),
         expires_at=subscription.expires_at,
         recurring=subscription.recurring,
-        created_by=username,
     )
     try:
         query = SubscriptionQuery(session)
@@ -136,19 +136,19 @@ def create_subscription(
         return subscription_create
     except SubscriptionException as e:
         raise HTTPException(400, str(e))
-    except SubscriptionPricingException as e:
+    except PricingException as e:
         raise HTTPException(400, str(e))
 
 
 @router.get("/subscription/{application}")
 def get_active_subscription(
-    application: str,
-    user: UserBase = Depends(require_token),
+    application: int,
+    user: UserBaseWithId = Depends(require_logged_in),
     session=Depends(create_session),
 ):
     query = SubscriptionQuery(session)
     try:
-        subscription = query.get_active_subscription(user.username, application)
+        subscription = query.get_active_subscription(user.id, application)
     except SubscriptionException:
         raise HTTPException(400, "Subscription not found")
 
@@ -157,33 +157,23 @@ def get_active_subscription(
 
 @router.get("/subscription")
 def get_active_subscriptions(
-    user: UserBase = Depends(require_token),
+    user: UserBaseWithId = Depends(require_user),
     session=Depends(create_session),
 ):
     if not user.is_user:
         return []
 
-    username = user.username
     query = SubscriptionQuery(session)
     try:
-        subscriptions = query.get_active_subscriptions(username)
+        subscriptions = query.get_active_subscriptions(user.id)
     except SubscriptionException:
         return []
 
-    return [
-        SubscriptionIn(
-            username=subscription.username,
-            application=subscription.application,
-            tier=subscription.tier,
-            expires_at=subscription.expires_at,
-            recurring=subscription.recurring,
-        )
-        for subscription in subscriptions
-    ]
+    return subscriptions
 
 
 class SubscriptionTokenResponse(BaseModel):
-    username: str
+    email: str
     application: str
     token: str
     expires_time: int
@@ -192,8 +182,8 @@ class SubscriptionTokenResponse(BaseModel):
 @router.get("/token/{application}")
 async def get_application_token(
     application: str,
-    user: UserBase = Depends(require_token),
-    username: Optional[str] = None,
+    user: UserBaseWithId = Depends(require_user),
+    email: Optional[str] = None,
     expires_days: Optional[
         int
     ] = SubscriptionSettings().subscription_token_expires_days,
@@ -202,16 +192,16 @@ async def get_application_token(
     query = SubscriptionQuery(session)
 
     if user.is_user:
-        username = user.username
+        email = user.email
         expires_days = SubscriptionSettings().subscription_token_expires_days
     else:
-        if username is None:
-            raise HTTPException(401, "username is missing")
+        if email is None:
+            raise HTTPException(401, "email is missing")
 
     try:
-        subscription = query.get_active_subscription(username, application)
+        subscription = query.get_active_subscription_by_name(user.id, application)
     except SubscriptionException:
-        raise HTTPException(401, f"No active subscription found for user {username}")
+        raise HTTPException(401, f"No active subscription found for user {email}")
 
     if subscription.balance > subscription.credit:
         raise HTTPException(HTTP_429_TOO_MANY_REQUESTS, "You have used up your credit")
@@ -224,12 +214,18 @@ async def get_application_token(
     Authorize = AuthJWT()
     expires_time = timedelta(days=expires_days)
     access_token = Authorize.create_access_token(
-        subject=username,
-        user_claims={"subscription": application, "tier": subscription.tier},
+        subject=email,
+        user_claims={
+            "subscription": application,
+            "tier": subscription.tier,
+            "user_id": user.id,
+            "subscription_id": subscription.id,
+            "application_id": subscription.application_id,
+        },
         expires_time=expires_time,
     )
     return SubscriptionTokenResponse(
-        username=username,
+        email=email,
         application=application,
         token=access_token,
         expires_time=expires_time.seconds,

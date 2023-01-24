@@ -18,9 +18,8 @@ from .activity.schemas import ActivityStatus, ActivityCreate
 from .activity.queries import ActivityQuery
 from .security.depends import RateLimiter, RateLimits, require_user
 from .security.router import router as security_router
-from .subscription.depends import require_subscription
+from .subscription.depends import require_subscription, SubscriptionResponse
 from .subscription.router import router as subscription_router
-from .subscription.schemas import SubscriptionBase
 from .utils import (
     State,
     make_topic,
@@ -126,7 +125,7 @@ async def define_service(
     return {"define": f"application {application}"}
 
 
-async def make_request(username: str, application: str, request: Request):
+async def make_request(email: str, application: str, request: Request):
     """Make request to application"""
 
     key = make_key()
@@ -149,7 +148,7 @@ async def make_request(username: str, application: str, request: Request):
 
     # inject user information
     info = Result(
-        user=username,
+        user=email,
         api=application,
         status=ActivityStatus.ACCEPTED,
     )
@@ -164,12 +163,12 @@ async def make_request(username: str, application: str, request: Request):
     return key
 
 
-def fetch_result(username: str, application: str, key: str):
+def fetch_result(email: str, application: str, key: str):
     """fetch result"""
     result = get_redis().get(key)
     if result is None:
         operation_counter.labels(
-            api=application, user=username, operation="result_not_found"
+            api=application, user=email, operation="result_not_found"
         ).inc()
         raise HTTPException(
             status_code=404,
@@ -185,7 +184,7 @@ def fetch_result(username: str, application: str, key: str):
         )
     elif result.status != ActivityStatus.PROCESSED:
         operation_counter.labels(
-            api=application, user=username, operation="error"
+            api=application, user=email, operation="error"
         ).inc()
         # FIXME change status code
         raise HTTPException(
@@ -205,18 +204,18 @@ def fetch_result(username: str, application: str, key: str):
 async def async_service(
     request: Request,
     # background_tasks: BackgroundTasks,
-    subscription: SubscriptionBase = Depends(require_subscription),
+    subscription: SubscriptionResponse = Depends(require_subscription),
 ):
     """generic handler for async api."""
 
-    username = subscription.username
+    email = subscription.email
     tier = subscription.tier
     application = subscription.application
-    operation_counter.labels(api=application, user=username, operation="received").inc()
+    operation_counter.labels(api=application, user=email, operation="received").inc()
 
-    key = await make_request(username, application, request)
+    key = await make_request(email, application, request)
 
-    operation_counter.labels(api=application, user=username, operation="accepted").inc()
+    operation_counter.labels(api=application, user=email, operation="accepted").inc()
 
     # activity = ActivityCreate(
     #     request=f"/async/{application}",

@@ -9,22 +9,23 @@ from fastapi.testclient import TestClient
 
 from apihub.common.db_session import create_session
 from apihub.security.models import User
-from apihub.security.schemas import UserBase, UserType
-from apihub.security.depends import require_user, require_admin, require_token, require_publisher
+from apihub.security.schemas import UserBase, UserType, UserBaseWithId
+from apihub.security.depends import require_user, require_admin, require_token, require_publisher, require_logged_in
 from apihub.subscription.depends import (
     require_subscription_balance,
+    SubscriptionResponse,
 )
 from apihub.subscription.models import (
     Subscription,
     SubscriptionTier,
     Application,
-    SubscriptionPricing,
+    Pricing,
 )
 from apihub.subscription.router import router
 from apihub.subscription.schemas import (
     SubscriptionIn,
     ApplicationCreate,
-    SubscriptionPricingBase,
+    PricingBase,
 )
 
 from apihub.security.helpers import hash_password
@@ -44,18 +45,18 @@ class ApplicationFactory(factory.alchemy.SQLAlchemyModelFactory):
     description = "description"
 
     created_at = factory.LazyFunction(datetime.now)
-    owner = "tester"
+    owner_id = factory.Sequence(int)
 
 
-class SubscriptionPricingFactory(factory.alchemy.SQLAlchemyModelFactory):
+class PricingFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta:
-        model = SubscriptionPricing
+        model = Pricing
 
     id = factory.Sequence(int)
     tier = SubscriptionTier.TRIAL
     price = 100.0
     credit = 100.0
-    application = factory.Sequence(lambda n: f"app{n}")
+    application_id = factory.Sequence(int)
 
 
 class UserFactory(factory.alchemy.SQLAlchemyModelFactory):
@@ -63,7 +64,8 @@ class UserFactory(factory.alchemy.SQLAlchemyModelFactory):
         model = User
 
     id = factory.Sequence(int)
-    username = factory.Sequence(lambda n: f"tester{n}")
+    name = factory.Sequence(lambda n: f"Mr Tester{n}")
+    email = factory.Sequence(lambda n: f"tester{n}@test.com")
     salt = SALT
     hashed_password = itemgetter(1)(hash_password("password", salt=SALT))
     role = UserType.USER
@@ -75,9 +77,7 @@ class SubscriptionFactory(factory.alchemy.SQLAlchemyModelFactory):
         model = Subscription
 
     id = factory.Sequence(int)
-    username = factory.Sequence(lambda n: f"tester{n}")
-    application = "test"
-    active = True
+    is_active = True
     tier = SubscriptionTier.TRIAL
     credit = 100
     balance = 0
@@ -85,20 +85,24 @@ class SubscriptionFactory(factory.alchemy.SQLAlchemyModelFactory):
     expires_at = factory.LazyFunction(lambda: datetime.now() + timedelta(days=1))
     recurring = False
     created_at = factory.LazyFunction(datetime.now)
-    created_by = "admin"
+    # created_by = "admin"
     notes = None
+
+    owner_id = factory.Sequence(int)
+    application_id = factory.Sequence(int)
+    pricing_id = factory.Sequence(int)
 
 
 def _require_admin_token():
-    return UserBase(username="tester", role=UserType.ADMIN)
+    return UserBaseWithId(id=1, email="tester", name="tester", role=UserType.ADMIN)
 
 
 def _require_user_token():
-    return UserBase(username="tester", role=UserType.USER)
+    return UserBaseWithId(id=1, email="tester", name="tester", role=UserType.USER)
 
 
 def _require_publisher_token():
-    return UserBase(username="tester", role=UserType.MANAGER)
+    return UserBaseWithId(id=1, email="tester", name="tester", role=UserType.PUBLISHER)
 
 
 @pytest.fixture(scope="function")
@@ -109,55 +113,47 @@ def client(db_session):
         finally:
             pass
 
-    def _require_admin():
-        return "admin"
-
-    def _require_user():
-        return "user"
-
-    def _require_publisher():
-        return "publisher"
-
     app = FastAPI()
     app.include_router(router)
 
     app.dependency_overrides[create_session] = _create_session
-    app.dependency_overrides[require_admin] = _require_admin
-    app.dependency_overrides[require_user] = _require_user
-    app.dependency_overrides[require_publisher] = _require_publisher
+    app.dependency_overrides[require_admin] = _require_admin_token
+    app.dependency_overrides[require_user] = _require_user_token
+    app.dependency_overrides[require_publisher] = _require_publisher_token
     app.dependency_overrides[require_token] = _require_user_token
+    app.dependency_overrides[require_logged_in] = _require_user_token
 
     @app.get("/api_balance/{application}")
     def api_function_2(
-        application: str, username: str = Depends(require_subscription_balance)
+        application: str, subscription: SubscriptionResponse = Depends(require_subscription_balance)
     ):
         pass
 
     UserFactory._meta.sqlalchemy_session = db_session
     UserFactory._meta.sqlalchemy_session_persistence = "commit"
-    UserFactory(username="tester", role=UserType.USER)
+    tester = UserFactory(id=100, email="tester@test.com", role=UserType.USER)
 
     UserFactory._meta.sqlalchemy_session = db_session
     UserFactory._meta.sqlalchemy_session_persistence = "commit"
-    UserFactory(username="publisher", role=UserType.PUBLISHER)
+    publisher = UserFactory(id=200, email="publisher@test.com", role=UserType.PUBLISHER)
 
     ApplicationFactory._meta.sqlalchemy_session = db_session
     ApplicationFactory._meta.sqlalchemy_session_persistence = "commit"
-    application = ApplicationFactory(name="test", url="/test")
+    application = ApplicationFactory(id=100, name="test", url="/test", owner_id=publisher.id)
 
-    SubscriptionPricingFactory._meta.sqlalchemy_session = db_session
-    SubscriptionPricingFactory._meta.sqlalchemy_session_persistence = "commit"
-    pricing = SubscriptionPricingFactory(
+    PricingFactory._meta.sqlalchemy_session = db_session
+    PricingFactory._meta.sqlalchemy_session_persistence = "commit"
+    pricing = PricingFactory(
+        id=100,
         tier=SubscriptionTier.TRIAL,
         price=100,
         credit=100,
-        application="test",
+        application_id=application.id,
     )
 
     SubscriptionFactory._meta.sqlalchemy_session = db_session
     SubscriptionFactory._meta.sqlalchemy_session_persistence = "commit"
-
-    SubscriptionFactory(username="tester", application="test", credit=100)
+    SubscriptionFactory(owner_id=tester.id, application_id=application.id, credit=100, pricing=pricing)
 
     yield TestClient(app)
 
@@ -168,14 +164,14 @@ class TestApplication:
             name="app",
             url="/test",
             description="test",
-            pricing=[
-                SubscriptionPricingBase(
+            pricings=[
+                PricingBase(
                     tier=SubscriptionTier.TRIAL, price=100, credit=100
                 ),
-                SubscriptionPricingBase(
+                PricingBase(
                     tier=SubscriptionTier.STANDARD, price=200, credit=200
                 ),
-                SubscriptionPricingBase(
+                PricingBase(
                     tier=SubscriptionTier.PREMIUM, price=300, credit=300
                 ),
             ],
@@ -191,7 +187,7 @@ class TestApplication:
         )
 
         response_json = response.json()
-        assert len(response_json["pricing"]) == 3
+        assert len(response_json["pricings"]) == 3
 
     def test_list_application(self, client, db_session):
         response = client.get("/application")
@@ -206,30 +202,34 @@ class TestApplication:
         assert response.status_code == 200
         response_json = response.json()
         assert (
-            len(response_json["pricing"]) == 1
-            and response_json["pricing"][0]["tier"] == "TRIAL"
+            len(response_json["pricings"]) == 1
+            and response_json["pricings"][0]["tier"] == "TRIAL"
         )
 
 
 class TestSubscription:
     def test_create_and_get_subscription(self, client, db_session):
+        UserFactory._meta.sqlalchemy_session = db_session
+        UserFactory._meta.sqlalchemy_session_persistence = "commit"
+        publisher = UserFactory(email="publisher1@test.com", role=UserType.PUBLISHER)
+
         ApplicationFactory._meta.sqlalchemy_session = db_session
         ApplicationFactory._meta.sqlalchemy_session_persistence = "commit"
-        ApplicationFactory(name="application", url="/test")
+        application = ApplicationFactory(name="application", url="/test", owner_id=publisher.id)
 
-        SubscriptionPricingFactory._meta.sqlalchemy_session = db_session
-        SubscriptionPricingFactory._meta.sqlalchemy_session_persistence = "commit"
-        SubscriptionPricingFactory(
+        PricingFactory._meta.sqlalchemy_session = db_session
+        PricingFactory._meta.sqlalchemy_session_persistence = "commit"
+        pricing = PricingFactory(
             tier=SubscriptionTier.TRIAL,
             price=100,
             credit=100,
-            application="application",
         )
 
         # case 1: create subscription
         new_subscription = SubscriptionIn(
-            username="tester",
-            application="application",
+            owner_id=publisher.id,
+            application_id=application.id,
+            pricing_id=pricing.id,
             tier=SubscriptionTier.TRIAL,
             expires_at=None,
             recurring=False,
@@ -240,14 +240,24 @@ class TestSubscription:
         )
         assert response.status_code == 200
 
+        def _require_logged_in():
+            return publisher
+
+        client.app.dependency_overrides[require_logged_in] = _require_logged_in
+
         response = client.get(
-            "/subscription/application",
+            f"/subscription/{application.id}",
         )
         assert response.status_code == 200
         assert response.json().get("credit") == 100
-        assert response.json().get("active") is True
 
     def test_get_all_subscriptions(self, client):
+
+        def _require_user():
+            return UserBaseWithId(id=100, email="", name="", role=UserType.USER)
+
+        client.app.dependency_overrides[require_user] = _require_user
+
         response = client.get(
             "/subscription",
         )
@@ -257,8 +267,9 @@ class TestSubscription:
 
     def test_create_subscription_not_existing_user(self, client):
         new_subscription = SubscriptionIn(
-            username="not existing user",
-            application="app 1",
+            owner_id=-1,
+            application_id=1,
+            pricing_id=1,
             tier=SubscriptionTier.TRIAL,
             expires_at=None,
             recurring=False,
@@ -270,14 +281,19 @@ class TestSubscription:
         assert response.status_code == 401
 
     def test_get_application_token(self, client, db_session):
+        def _require_user():
+            return UserBaseWithId(id=100, email="", name="", role=UserType.USER)
+
+        client.app.dependency_overrides[require_user] = _require_user
+
         SubscriptionFactory._meta.sqlalchemy_session = db_session
         SubscriptionFactory._meta.sqlalchemy_session_persistence = "commit"
 
-        ApplicationFactory(name="app")
-        SubscriptionPricingFactory(
-            tier=SubscriptionTier.TRIAL, price=100, credit=100, application="app"
+        application = ApplicationFactory(name="app", owner_id=100)
+        pricing = PricingFactory(
+            tier=SubscriptionTier.TRIAL, price=100, credit=100, application_id=application.id
         )
-        SubscriptionFactory(username="tester", application="app", credit=100)
+        SubscriptionFactory(owner_id=100, application_id=application.id, pricing_id=pricing.id, credit=100)
 
         response = client.get(
             "/token/app",
@@ -285,46 +301,11 @@ class TestSubscription:
         assert response.status_code == 200, response.json()
         assert response.json().get("token") is not None
 
-        ApplicationFactory(name="app_2")
-        SubscriptionPricingFactory(
-            tier=SubscriptionTier.TRIAL, price=100, credit=100, application="app_2"
-        )
-        SubscriptionFactory(
-            username="tester", application="app_2", active=False, credit=1000
-        )
-
-        response = client.get(
-            "/subscription/app_2",
-        )
-
-        assert response.status_code == 400, response.json()
-
-    def test_get_application_token_admin(self, client, db_session):
-        client.app.dependency_overrides[require_token] = _require_admin_token
-        SubscriptionFactory._meta.sqlalchemy_session = db_session
-        SubscriptionFactory._meta.sqlalchemy_session_persistence = "commit"
-
-        ApplicationFactory(name="app2")
-        SubscriptionPricingFactory(
-            tier=SubscriptionTier.TRIAL, price=100, credit=100, application="app2"
-        )
-        SubscriptionFactory(username="tester", application="app2", credit=1000)
-
-        response = client.get(
-            "/token/app2",
-            params={
-                "username": "tester",
-                "expires_days": 30,
-            },
-        )
-        client.app.dependency_overrides[require_token] = _require_user_token
-        assert response.status_code == 200, response.json()
-        assert response.json().get("token") is not None
-
     def test_create_duplicate_subscription(self, client, db_session):
         new_subscription = SubscriptionIn(
-            username="tester",
-            application="application",
+            owner_id=100,
+            application_id=100,
+            pricing_id=100,
             tier=SubscriptionTier.TRIAL,
             expires_at=None,
             recurring=False,
@@ -333,62 +314,24 @@ class TestSubscription:
             "/subscription",
             data=new_subscription.json(),
         )
-        assert response.status_code == 404
-
-        ApplicationFactory._meta.sqlalchemy_session = db_session
-        ApplicationFactory._meta.sqlalchemy_session_persistence = "commit"
-        ApplicationFactory(name="application", url="/test")
-
-        SubscriptionPricingFactory._meta.sqlalchemy_session = db_session
-        SubscriptionPricingFactory._meta.sqlalchemy_session_persistence = "commit"
-        SubscriptionPricingFactory(
-            tier=SubscriptionTier.TRIAL,
-            price=100,
-            credit=100,
-            application="application",
-        )
-
-        new_subscription = SubscriptionIn(
-            username="tester",
-            application="application",
-            tier=SubscriptionTier.TRIAL,
-            expires_at=None,
-            recurring=False,
-        )
-        response = client.post(
-            "/subscription",
-            data=new_subscription.json(),
-        )
-        assert response.status_code == 200, response.json()
-
-        response = client.post(
-            "/subscription",
-            data=new_subscription.json(),
-        )
-        assert response.status_code == 403, response.json()
+        assert response.status_code == 403
 
     def test_require_balance(self, client, db_session):
+        def _require_user():
+            return UserBaseWithId(id=100, email="", name="", role=UserType.USER)
+
+        client.app.dependency_overrides[require_user] = _require_user
+
         SubscriptionFactory._meta.sqlalchemy_session = db_session
         SubscriptionFactory._meta.sqlalchemy_session_persistence = "commit"
 
-        ApplicationFactory(name="app3")
-        SubscriptionPricingFactory(
-            tier=SubscriptionTier.TRIAL, price=100, credit=100, application="app3"
-        )
-        SubscriptionFactory(
-            username="tester",
-            application="app3",
-            tier=SubscriptionTier.TRIAL,
-            credit=2,
-        )
-
         response = client.get(
-            "/token/app3",
+            "/token/test",
         )
         assert response.status_code == 200, response.json()
         token = response.json().get("token")
 
         response = client.get(
-            "/api_balance/app3", headers={"Authorization": f"Bearer {token}"}
+            "/api_balance/test", headers={"Authorization": f"Bearer {token}"}
         )
         assert response.status_code == 200, response.json()

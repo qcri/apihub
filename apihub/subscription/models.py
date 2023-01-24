@@ -13,7 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from ..common.db_session import Base
-from .schemas import SubscriptionTier, ApplicationCreate, SubscriptionPricingCreate
+from .schemas import SubscriptionTier, ApplicationCreate, PricingCreate
 
 
 class Application(Base):
@@ -21,18 +21,20 @@ class Application(Base):
     This class is used to store application data.
     """
 
-    __tablename__ = "application"
+    __tablename__ = "applications"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
     url = Column(String)
     description = Column(String)
+    is_active = Column(Boolean, default=True)
 
     created_at = Column(DateTime, default=datetime.now())
-    owner = Column(String, ForeignKey("users.username"))
+    owner_id = Column(Integer, ForeignKey("users.id"))
 
-    subscriptions = relationship("Subscription", backref="app")
-    subscriptions_pricing = relationship("SubscriptionPricing", backref="app")
+    owner = relationship("User")
+    subscriptions = relationship("Subscription", back_populates="application")
+    pricings = relationship("Pricing", back_populates="application")
 
     def __str__(self):
         return f"{self.name} || {self.url}"
@@ -42,32 +44,41 @@ class Application(Base):
             name=self.name,
             url=self.url,
             description=self.description,
-            pricing=[
-                SubscriptionPricingCreate(
+            pricings=[
+                PricingCreate(
                     tier=pricing.tier, price=pricing.price, credit=pricing.credit, application=self.name,
                 )
-                for pricing in self.subscriptions_pricing
+                for pricing in self.pricings
             ] if with_pricing else [],
         )
 
 
-class SubscriptionPricing(Base):
+class Pricing(Base):
     """
     This class is used to store subscription pricing data.
     """
 
-    __tablename__ = "subscription_pricing"
-    __table_args__ = (UniqueConstraint("application", "tier", name="application_tier"),)
+    __tablename__ = "pricings"
+    __table_args__ = (
+        UniqueConstraint(
+            "application_id", "tier", name="application_tier_constraint"
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     tier = Column(Enum(SubscriptionTier), default=SubscriptionTier.TRIAL)
     price = Column(Integer)
     credit = Column(Integer)
+    is_active = Column(Boolean, default=True)
 
-    application = Column(String, ForeignKey("application.name"), nullable=False)
+    created_at = Column(DateTime, default=datetime.now())
+
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=False)
+    application = relationship("Application", uselist=False, back_populates="pricings")
+
 
     def __str__(self):
-        return f"{self.application} || {self.tier} || {self.price}"
+        return f"{self.application_id} || {self.tier} || {self.price}"
 
 
 class Subscription(Base):
@@ -76,28 +87,33 @@ class Subscription(Base):
     """
 
     __tablename__ = "subscriptions"
-    __table_args__ = (
-        UniqueConstraint(
-            "application", "tier", "username", name="application_tier_username"
-        ),
-    )
+    # __table_args__ = (
+    #     UniqueConstraint(
+    #         "application_id", "tier", "user_id", name="application_tier_user_constraint"
+    #     ),
+    # )
 
     id = Column(Integer, primary_key=True, index=True)
     tier = Column(Enum(SubscriptionTier), default=SubscriptionTier.TRIAL)
-    active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True)
     credit = Column(Integer, default=0)
     balance = Column(Integer, default=0)
     starts_at = Column(DateTime, default=datetime.now())
     expires_at = Column(DateTime)
     recurring = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.now())
-    created_by = Column(String)
+    # created_by = Column(Integer, ForeignKey("users.id"))
     notes = Column(String)
 
-    username = Column(String, ForeignKey("users.username"), nullable=False)
-    user = relationship("User", back_populates="subscriptions")
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner = relationship("User")
 
-    application = Column(String, ForeignKey("application.name"), nullable=False)
+    application_id = Column(Integer, ForeignKey("applications.id"), nullable=False)
+    application = relationship("Application", uselist=False, back_populates="subscriptions")
+
+    pricing_id = Column(Integer, ForeignKey("pricings.id"), nullable=False)
+    pricing = relationship("Pricing", uselist=False)
+
 
     def __str__(self):
-        return f"{self.application} || {self.tier} || {self.username}"
+        return f"{self.application} || {self.tier} || {self.email}"

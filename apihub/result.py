@@ -4,8 +4,6 @@ from dotenv import load_dotenv
 
 from pipeline import ProcessorSettings, Processor, Command, CommandActions, Definition
 
-from .activity.queries import ActivityQuery
-from .activity.schemas import ActivityStatus
 from .common.db_session import create_session
 from .utils import Result, RedisSettings, DefinitionManager
 from . import __worker__, __version__
@@ -61,10 +59,10 @@ class ResultWriter(Processor):
     def process(self, message_content, message_id):
         self.logger.info("Processing MESSAGE")
         result = Result.parse_obj(message_content)
-        if result.status == ActivityStatus.PROCESSED:
-            result.result = {
-                k: message_content.get(k) for k in self.message.logs[-1].updated
-            }
+        # if result.status == ActivityStatus.PROCESSED:
+        #     result.result = {
+        #         k: message_content.get(k) for k in self.message.logs[-1].updated
+        #     }
 
         self.api_counter.labels(api=result.api, user=result.user, status=result.status)
 
@@ -74,10 +72,10 @@ class ResultWriter(Processor):
         r = result.json()
         self.redis.set(message_id, r, ex=86400)
 
-        if result.status == ActivityStatus.PROCESSED:
-            ActivityQuery(self.session).update_activity(
-                message_id, **{"status": ActivityStatus.PROCESSED}
-            )
+        # if result.status == ActivityStatus.PROCESSED:
+        #     ActivityQuery(self.session).update_activity(
+        #         message_id, **{"status": ActivityStatus.PROCESSED}
+        #     )
 
         return None
 

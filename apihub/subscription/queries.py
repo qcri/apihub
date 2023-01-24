@@ -8,13 +8,13 @@ from redis import Redis
 from sqlalchemy.orm import Query
 
 from ..common.queries import BaseQuery
-from .models import Subscription, Application, SubscriptionPricing
+from .models import Subscription, Application, Pricing
 from .schemas import (
     SubscriptionCreate,
     SubscriptionDetails,
     ApplicationCreate,
     ApplicationCreateWithOwner,
-    SubscriptionPricingBase,
+    PricingBase,
 )
 from .helpers import get_and_reset_balance_in_cache
 
@@ -23,7 +23,7 @@ class ApplicationException(Exception):
     pass
 
 
-class SubscriptionPricingException(Exception):
+class PricingException(Exception):
     pass
 
 
@@ -39,28 +39,26 @@ class ApplicationQuery(BaseQuery):
         """
         return self.session.query(Application)
 
-    def create_application(self, application: ApplicationCreateWithOwner):
+    def create_application(self, application: ApplicationCreateWithOwner) -> ApplicationCreateWithOwner:
         """
         Create an application.
         :param application: Application details.
         :return: Application object.
         """
-        pricing_list = []
-        for pricing in application.pricing:
-            pricing_list.append(
-                SubscriptionPricing(
+        pricings = []
+        for pricing in application.pricings:
+            pricings.append(
+                Pricing(
                     tier=pricing.tier,
                     price=pricing.price,
                     credit=pricing.credit,
-                    application=application.name,
                 )
             )
         application_object = Application(
             name=application.name,
             url=application.url,
             description=application.description,
-            owner=application.owner,
-            subscriptions_pricing=pricing_list,
+            pricings=pricings,
         )
         try:
             self.session.add(application_object)
@@ -70,7 +68,19 @@ class ApplicationQuery(BaseQuery):
             self.session.rollback()
             raise ApplicationException(f"Error creating application: {e}")
 
-    def get_application(self, name: str) -> ApplicationCreate:
+    def get_application(self, application_id: int) -> ApplicationCreate:
+        """
+        Get application by name.
+        :param name: Application name.
+        :return: application object.
+        """
+        try:
+            application = self.get_query().filter(Application.id == application_id).one()
+            return application.to_schema(with_pricing=True)
+        except NoResultFound:
+            raise ApplicationException(f"Application {application_id} not found.")
+
+    def get_application_by_name(self, name: str) -> ApplicationCreate:
         """
         Get application by name.
         :param name: Application name.
@@ -82,7 +92,7 @@ class ApplicationQuery(BaseQuery):
         except NoResultFound:
             raise ApplicationException(f"Application {name} not found.")
 
-    def get_applications(self, username=None) -> List[ApplicationCreate]:
+    def get_applications(self, email=None) -> List[ApplicationCreate]:
         """
         List applications.
         :return: List of applications.
@@ -91,26 +101,26 @@ class ApplicationQuery(BaseQuery):
         return list(applications)
 
 
-class SubscriptionPricingQuery(BaseQuery):
+class PricingQuery(BaseQuery):
     def get_query(self) -> Query:
         """
         Get query object.
         :return: Query object.
         """
-        return self.session.query(SubscriptionPricing)
+        return self.session.query(Pricing)
 
     def create_subscription_pricing(
         self, tier: str, application: str, price: int, credit: int
-    ) -> SubscriptionPricing:
+    ) -> Pricing:
         """
         Create subscription pricing.
         :param tier: Subscription tier.
         :param application: Application name.
         :param price: Price.
         :param credit: Credit.
-        :return: SubscriptionPricing object.
+        :return: Pricing object.
         """
-        subscription_pricing = SubscriptionPricing(
+        subscription_pricing = Pricing(
             tier=tier,
             application=application,
             price=price,
@@ -122,31 +132,31 @@ class SubscriptionPricingQuery(BaseQuery):
             return subscription_pricing
         except Exception as e:
             self.session.rollback()
-            raise SubscriptionPricingException(
+            raise PricingException(
                 f"Error creating subscription pricing: {e}"
             )
 
     def get_subscription_pricing(
-        self, application: str, tier: str
-    ) -> SubscriptionPricing:
+        self, application_id: int, tier: str
+    ) -> Pricing:
         """
         Get subscription pricing by application name and tier.
         :param application: Application name.
         :param tier: Subscription tier.
-        :return: SubscriptionPricing object.
+        :return: Pricing object.
         """
         try:
             return (
                 self.get_query()
                 .filter(
-                    SubscriptionPricing.application == application,
-                    SubscriptionPricing.tier == tier,
+                    Pricing.application_id == application_id,
+                    Pricing.tier == tier,
                 )
                 .one()
             )
         except NoResultFound:
-            raise SubscriptionPricingException(
-                f"Subscription pricing for application {application} and tier {tier} not found."
+            raise PricingException(
+                f"Subscription pricing for application {application_id} and tier {tier} not found."
             )
 
 
@@ -168,7 +178,7 @@ class SubscriptionQuery(BaseQuery):
         found_existing_subscription = True
         try:
             self.get_active_subscription(
-                subscription_create.username, subscription_create.application
+                subscription_create.owner_id, subscription_create.application_id
             )
         except SubscriptionException:
             found_existing_subscription = False
@@ -178,22 +188,21 @@ class SubscriptionQuery(BaseQuery):
                 "Found existing subscription, please delete it before create new subscription"
             )
 
-        subscription_pricing = SubscriptionPricingQuery(
+        subscription_pricing = PricingQuery(
             self.session
         ).get_subscription_pricing(
-            subscription_create.application, subscription_create.tier
+            subscription_create.application_id, subscription_create.tier
         )
 
         new_subscription = Subscription(
-            username=subscription_create.username,
-            application=subscription_create.application,
-            active=subscription_create.active,
+            owner_id=subscription_create.owner_id,
+            application_id=subscription_create.application_id,
+            pricing_id=subscription_create.pricing_id,
             tier=subscription_create.tier,
             credit=subscription_pricing.credit,
             balance=subscription_pricing.credit,
             expires_at=subscription_create.expires_at,
             recurring=subscription_create.recurring,
-            created_by=subscription_create.created_by,
         )
         try:
             self.session.add(new_subscription)
@@ -202,12 +211,76 @@ class SubscriptionQuery(BaseQuery):
             self.session.rollback()
             raise SubscriptionException(f"Error creating subscription: {e}")
 
-    def get_active_subscription(
-        self, username: str, application: str
+    def get_active_subscription_by_name(
+        self, owner_id: int, application: str
     ) -> SubscriptionDetails:
         """
         Get active subscription of a user.
-        :param username: str
+        :param email: str
+        :param application: str
+        :return: SubscriptionDetails object.
+        """
+        try:
+            application = self.session.query(Application).filter(
+                Application.name == application
+            ).one()
+
+            subscription = self.get_query().filter(
+                    Subscription.owner_id == owner_id,
+                    Subscription.application_id == application.id,
+                    Subscription.is_active == true(),
+                    or_(
+                        Subscription.expires_at.is_(None),
+                        Subscription.expires_at > datetime.now(),
+                    ),
+                ).one()
+        except NoResultFound:
+            raise SubscriptionException("Subscription not found.")
+
+        return SubscriptionDetails(
+            id=subscription.id,
+            owner_id=subscription.owner_id,
+            application_id=subscription.application_id,
+            pricing_id=subscription.pricing_id,
+            tier=subscription.tier,
+            is_active=subscription.is_active,
+            credit=subscription.credit,
+            balance=subscription.balance,
+            starts_at=subscription.starts_at,
+            expires_at=subscription.expires_at,
+            recurring=subscription.recurring,
+            created_at=subscription.created_at,
+        )
+
+    def get_subscription(self, subscription_id: int) -> SubscriptionDetails:
+        try:
+            subscription = self.get_query().filter(
+                Subscription.id == subscription_id
+            ).one()
+        except NoResultFound:
+            raise SubscriptionException("Subscription not found.")
+        
+        return SubscriptionDetails(
+            id=subscription.id,
+            owner_id=subscription.owner_id,
+            application_id=subscription.application_id,
+            pricing_id=subscription.pricing_id,
+            tier=subscription.tier,
+            is_active=subscription.is_active,
+            credit=subscription.credit,
+            balance=subscription.balance,
+            starts_at=subscription.starts_at,
+            expires_at=subscription.expires_at,
+            recurring=subscription.recurring,
+            created_at=subscription.created_at,
+        )
+
+    def get_active_subscription(
+        self, owner_id: int, application_id: int
+    ) -> SubscriptionDetails:
+        """
+        Get active subscription of a user.
+        :param email: str
         :param application: str
         :return: SubscriptionDetails object.
         """
@@ -215,9 +288,9 @@ class SubscriptionQuery(BaseQuery):
             subscription = (
                 self.get_query()
                 .filter(
-                    Subscription.username == username,
-                    Subscription.application == application,
-                    Subscription.active == true(),
+                    Subscription.owner_id == owner_id,
+                    Subscription.application_id == application_id,
+                    Subscription.is_active == true(),
                     or_(
                         Subscription.expires_at.is_(None),
                         Subscription.expires_at > datetime.now(),
@@ -229,29 +302,30 @@ class SubscriptionQuery(BaseQuery):
             raise SubscriptionException
 
         return SubscriptionDetails(
-            username=username,
-            application=application,
+            id=subscription.id,
+            owner_id=subscription.owner_id,
+            application_id=subscription.application_id,
+            pricing_id=subscription.pricing_id,
             tier=subscription.tier,
-            active=subscription.active,
+            is_active=subscription.is_active,
             credit=subscription.credit,
             balance=subscription.balance,
             starts_at=subscription.starts_at,
             expires_at=subscription.expires_at,
             recurring=subscription.recurring,
-            created_by=subscription.created_by,
             created_at=subscription.created_at,
         )
 
-    def get_active_subscriptions(self, username: str) -> List[SubscriptionDetails]:
+    def get_active_subscriptions(self, user_id: int) -> List[SubscriptionDetails]:
         """
         Get all active subscriptions of a user.
-        :param username: str
+        :param email: str
         :return: list of SubscriptionDetails.
         """
         try:
             subscriptions = self.get_query().filter(
-                Subscription.username == username,
-                Subscription.active == true(),
+                Subscription.owner_id == user_id,
+                Subscription.is_active == true(),
                 or_(
                     Subscription.expires_at.is_(None),
                     Subscription.expires_at > datetime.now(),
@@ -262,51 +336,35 @@ class SubscriptionQuery(BaseQuery):
 
         return [
             SubscriptionDetails(
-                username=subscription.username,
-                application=subscription.application,
+                id=subscription.id,
+                owner_id=subscription.owner_id,
+                application_id=subscription.application_id,
+                pricing_id=subscription.pricing_id,
                 tier=subscription.tier,
-                active=subscription.active,
+                is_active=subscription.is_active,
                 credit=subscription.credit,
                 balance=subscription.balance,
                 expires_at=subscription.expires_at,
                 recurring=subscription.recurring,
-                created_by=subscription.created_by,
                 created_at=subscription.created_at,
             )
             for subscription in subscriptions
         ]
 
     def update_balance_in_subscription(
-        self, username: str, application: str, tier: str, redis: Redis
+        self, subscription: Subscription, redis: Redis
     ) -> None:
         """
         Update balance in subscription.
-        :param username: str
+        :param email: str
         :param application: str
         :param tier: str
         :param redis: Redis object.
         :return: None
         """
-        try:
-            subscription = (
-                self.get_query()
-                .filter(
-                    Subscription.username == username,
-                    Subscription.application == application,
-                    Subscription.tier == tier,
-                    Subscription.active == true(),
-                    or_(
-                        Subscription.expires_at.is_(None),
-                        Subscription.expires_at > datetime.now(),
-                    ),
-                )
-                .one()
-            )
-        except NoResultFound:
-            raise SubscriptionException
-
         with get_and_reset_balance_in_cache(
-            username, application, tier, redis
+            # FIXME why not use subscription.id?
+            subscription.user_id, subscription.application_id, subscription.tier, redis
         ) as balance:
             subscription.balance = subscription.credit - balance
             self.session.add(subscription)
