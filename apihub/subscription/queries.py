@@ -178,7 +178,7 @@ class SubscriptionQuery(BaseQuery):
         found_existing_subscription = True
         try:
             self.get_active_subscription(
-                subscription_create.owner_id, subscription_create.application_id
+                subscription_create.user_id, subscription_create.application_id
             )
         except SubscriptionException:
             found_existing_subscription = False
@@ -195,7 +195,7 @@ class SubscriptionQuery(BaseQuery):
         )
 
         new_subscription = Subscription(
-            owner_id=subscription_create.owner_id,
+            user_id=subscription_create.user_id,
             application_id=subscription_create.application_id,
             pricing_id=subscription_create.pricing_id,
             tier=subscription_create.tier,
@@ -212,7 +212,7 @@ class SubscriptionQuery(BaseQuery):
             raise SubscriptionException(f"Error creating subscription: {e}")
 
     def get_active_subscription_by_name(
-        self, owner_id: int, application: str
+        self, user_id: int, application: str
     ) -> SubscriptionDetails:
         """
         Get active subscription of a user.
@@ -226,7 +226,7 @@ class SubscriptionQuery(BaseQuery):
             ).one()
 
             subscription = self.get_query().filter(
-                    Subscription.owner_id == owner_id,
+                    Subscription.user_id == user_id,
                     Subscription.application_id == application.id,
                     Subscription.is_active == true(),
                     or_(
@@ -239,7 +239,7 @@ class SubscriptionQuery(BaseQuery):
 
         return SubscriptionDetails(
             id=subscription.id,
-            owner_id=subscription.owner_id,
+            user_id=subscription.user_id,
             application_id=subscription.application_id,
             pricing_id=subscription.pricing_id,
             tier=subscription.tier,
@@ -262,7 +262,7 @@ class SubscriptionQuery(BaseQuery):
         
         return SubscriptionDetails(
             id=subscription.id,
-            owner_id=subscription.owner_id,
+            user_id=subscription.user_id,
             application_id=subscription.application_id,
             pricing_id=subscription.pricing_id,
             tier=subscription.tier,
@@ -276,7 +276,7 @@ class SubscriptionQuery(BaseQuery):
         )
 
     def get_active_subscription(
-        self, owner_id: int, application_id: int
+        self, user_id: int, application_id: int
     ) -> SubscriptionDetails:
         """
         Get active subscription of a user.
@@ -288,7 +288,7 @@ class SubscriptionQuery(BaseQuery):
             subscription = (
                 self.get_query()
                 .filter(
-                    Subscription.owner_id == owner_id,
+                    Subscription.user_id == user_id,
                     Subscription.application_id == application_id,
                     Subscription.is_active == true(),
                     or_(
@@ -303,7 +303,7 @@ class SubscriptionQuery(BaseQuery):
 
         return SubscriptionDetails(
             id=subscription.id,
-            owner_id=subscription.owner_id,
+            user_id=subscription.user_id,
             application_id=subscription.application_id,
             pricing_id=subscription.pricing_id,
             tier=subscription.tier,
@@ -324,7 +324,7 @@ class SubscriptionQuery(BaseQuery):
         """
         try:
             subscriptions = self.get_query().filter(
-                Subscription.owner_id == user_id,
+                Subscription.user_id == user_id,
                 Subscription.is_active == true(),
                 or_(
                     Subscription.expires_at.is_(None),
@@ -337,7 +337,7 @@ class SubscriptionQuery(BaseQuery):
         return [
             SubscriptionDetails(
                 id=subscription.id,
-                owner_id=subscription.owner_id,
+                user_id=subscription.user_id,
                 application_id=subscription.application_id,
                 pricing_id=subscription.pricing_id,
                 tier=subscription.tier,

@@ -45,7 +45,7 @@ class ApplicationFactory(factory.alchemy.SQLAlchemyModelFactory):
     description = "description"
 
     created_at = factory.LazyFunction(datetime.now)
-    owner_id = factory.Sequence(int)
+    user_id = factory.Sequence(int)
 
 
 class PricingFactory(factory.alchemy.SQLAlchemyModelFactory):
@@ -88,7 +88,7 @@ class SubscriptionFactory(factory.alchemy.SQLAlchemyModelFactory):
     # created_by = "admin"
     notes = None
 
-    owner_id = factory.Sequence(int)
+    user_id = factory.Sequence(int)
     application_id = factory.Sequence(int)
     pricing_id = factory.Sequence(int)
 
@@ -139,7 +139,7 @@ def client(db_session):
 
     ApplicationFactory._meta.sqlalchemy_session = db_session
     ApplicationFactory._meta.sqlalchemy_session_persistence = "commit"
-    application = ApplicationFactory(id=100, name="test", url="/test", owner_id=publisher.id)
+    application = ApplicationFactory(id=100, name="test", url="/test", user_id=publisher.id)
 
     PricingFactory._meta.sqlalchemy_session = db_session
     PricingFactory._meta.sqlalchemy_session_persistence = "commit"
@@ -153,7 +153,7 @@ def client(db_session):
 
     SubscriptionFactory._meta.sqlalchemy_session = db_session
     SubscriptionFactory._meta.sqlalchemy_session_persistence = "commit"
-    SubscriptionFactory(owner_id=tester.id, application_id=application.id, credit=100, pricing=pricing)
+    SubscriptionFactory(user_id=tester.id, application_id=application.id, credit=100, pricing=pricing)
 
     yield TestClient(app)
 
@@ -215,7 +215,7 @@ class TestSubscription:
 
         ApplicationFactory._meta.sqlalchemy_session = db_session
         ApplicationFactory._meta.sqlalchemy_session_persistence = "commit"
-        application = ApplicationFactory(name="application", url="/test", owner_id=publisher.id)
+        application = ApplicationFactory(name="application", url="/test", user_id=publisher.id)
 
         PricingFactory._meta.sqlalchemy_session = db_session
         PricingFactory._meta.sqlalchemy_session_persistence = "commit"
@@ -227,7 +227,7 @@ class TestSubscription:
 
         # case 1: create subscription
         new_subscription = SubscriptionIn(
-            owner_id=publisher.id,
+            user_id=publisher.id,
             application_id=application.id,
             pricing_id=pricing.id,
             tier=SubscriptionTier.TRIAL,
@@ -267,7 +267,7 @@ class TestSubscription:
 
     def test_create_subscription_not_existing_user(self, client):
         new_subscription = SubscriptionIn(
-            owner_id=-1,
+            user_id=-1,
             application_id=1,
             pricing_id=1,
             tier=SubscriptionTier.TRIAL,
@@ -289,11 +289,11 @@ class TestSubscription:
         SubscriptionFactory._meta.sqlalchemy_session = db_session
         SubscriptionFactory._meta.sqlalchemy_session_persistence = "commit"
 
-        application = ApplicationFactory(name="app", owner_id=100)
+        application = ApplicationFactory(name="app", user_id=100)
         pricing = PricingFactory(
             tier=SubscriptionTier.TRIAL, price=100, credit=100, application_id=application.id
         )
-        SubscriptionFactory(owner_id=100, application_id=application.id, pricing_id=pricing.id, credit=100)
+        SubscriptionFactory(user_id=100, application_id=application.id, pricing_id=pricing.id, credit=100)
 
         response = client.get(
             "/token/app",
@@ -303,7 +303,7 @@ class TestSubscription:
 
     def test_create_duplicate_subscription(self, client, db_session):
         new_subscription = SubscriptionIn(
-            owner_id=100,
+            user_id=100,
             application_id=100,
             pricing_id=100,
             tier=SubscriptionTier.TRIAL,

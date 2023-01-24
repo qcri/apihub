@@ -96,14 +96,14 @@ def create_subscription(
 ):
     # make sure the email exists.
     try:
-        UserQuery(session).get_user_by_id(subscription.owner_id)
+        UserQuery(session).get_user_by_id(subscription.user_id)
     except UserException:
-        raise HTTPException(401, f"User {subscription.owner_id} not found.")
+        raise HTTPException(401, f"User {subscription.user_id} not found.")
 
     # make sure the application is not currently active.
     try:
         SubscriptionQuery(session).get_active_subscription(
-            subscription.owner_id, subscription.application_id
+            subscription.user_id, subscription.application_id
         )
         raise HTTPException(
             403, f"Subscription for applicaiton {subscription.application_id} already exists."
@@ -122,7 +122,7 @@ def create_subscription(
         )
 
     subscription_create = SubscriptionCreate(
-        owner_id=subscription.owner_id,
+        user_id=subscription.user_id,
         application_id=subscription.application_id,
         pricing_id=subscription.pricing_id,
         tier=subscription.tier,

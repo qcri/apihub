@@ -30,7 +30,7 @@ class Application(Base):
     is_active = Column(Boolean, default=True)
 
     created_at = Column(DateTime, default=datetime.now())
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
 
     owner = relationship("User")
     subscriptions = relationship("Subscription", back_populates="application")
@@ -105,7 +105,7 @@ class Subscription(Base):
     # created_by = Column(Integer, ForeignKey("users.id"))
     notes = Column(String)
 
-    owner_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
     owner = relationship("User")
 
     application_id = Column(Integer, ForeignKey("applications.id"), nullable=False)

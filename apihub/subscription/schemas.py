@@ -35,7 +35,7 @@ class ApplicationCreate(ApplicationBase):
 
 
 class ApplicationCreateWithOwner(ApplicationCreate):
-    owner_id: int
+    user_id: int
 
 
 class ApplicationDetailsWithId(ApplicationCreateWithOwner):
@@ -43,7 +43,7 @@ class ApplicationDetailsWithId(ApplicationCreateWithOwner):
 
 
 class SubscriptionBase(BaseModel):
-    owner_id: int
+    user_id: int
     application_id: int
     tier: SubscriptionTier
 
