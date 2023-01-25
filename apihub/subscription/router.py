@@ -17,6 +17,7 @@ from .schemas import (
     SubscriptionIn,
     ApplicationCreate,
     ApplicationCreateWithOwner,
+    SubscriptionToken,
 )
 from .queries import (
     SubscriptionQuery,
@@ -179,7 +180,7 @@ class SubscriptionTokenResponse(BaseModel):
     expires_time: int
 
 
-@router.get("/token/{application}")
+@router.get("/token/{application}", response_model=SubscriptionToken)
 async def get_application_token(
     application: str,
     user: UserBaseWithId = Depends(require_user),
@@ -211,22 +212,14 @@ async def get_application_token(
     if expires_days > subscription_expires_timedelta.days:
         expires_days = subscription_expires_timedelta.days
 
-    Authorize = AuthJWT()
-    expires_time = timedelta(days=expires_days)
-    access_token = Authorize.create_access_token(
-        subject=email,
-        user_claims={
-            "subscription": application,
-            "tier": subscription.tier,
-            "user_id": user.id,
-            "subscription_id": subscription.id,
-            "application_id": subscription.application_id,
-        },
-        expires_time=expires_time,
-    )
-    return SubscriptionTokenResponse(
+    subscription_token = SubscriptionToken(
         email=email,
+        user_id=user.id,
+        role=user.role,
         application=application,
-        token=access_token,
-        expires_time=expires_time.seconds,
+        tier=subscription.tier,
+        application_id=subscription.application_id,
+        subscription_id=subscription.id,
+        expires_days=expires_days,
     )
+    return subscription_token

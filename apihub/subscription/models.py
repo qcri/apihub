@@ -32,7 +32,7 @@ class Application(Base):
     created_at = Column(DateTime, default=datetime.now())
     user_id = Column(Integer, ForeignKey("users.id"))
 
-    owner = relationship("User")
+    user = relationship("User")
     subscriptions = relationship("Subscription", back_populates="application")
     pricings = relationship("Pricing", back_populates="application")
 

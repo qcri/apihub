@@ -13,7 +13,7 @@ from apihub.security.schemas import UserBase, UserType, UserBaseWithId
 from apihub.security.depends import require_user, require_admin, require_token, require_publisher, require_logged_in
 from apihub.subscription.depends import (
     require_subscription_balance,
-    SubscriptionResponse,
+    SubscriptionToken,
 )
 from apihub.subscription.models import (
     Subscription,
@@ -125,7 +125,7 @@ def client(db_session):
 
     @app.get("/api_balance/{application}")
     def api_function_2(
-        application: str, subscription: SubscriptionResponse = Depends(require_subscription_balance)
+        application: str, subscription: SubscriptionToken = Depends(require_subscription_balance)
     ):
         pass
 
@@ -299,7 +299,7 @@ class TestSubscription:
             "/token/app",
         )
         assert response.status_code == 200, response.json()
-        assert response.json().get("token") is not None
+        assert response.json().get("access_token") is not None
 
     def test_create_duplicate_subscription(self, client, db_session):
         new_subscription = SubscriptionIn(
@@ -329,7 +329,7 @@ class TestSubscription:
             "/token/test",
         )
         assert response.status_code == 200, response.json()
-        token = response.json().get("token")
+        token = response.json().get("access_token")
 
         response = client.get(
             "/api_balance/test", headers={"Authorization": f"Bearer {token}"}

@@ -18,7 +18,7 @@ from .activity.schemas import ActivityStatus, ActivityCreate
 from .activity.queries import ActivityQuery
 from .security.depends import RateLimiter, RateLimits, require_user
 from .security.router import router as security_router
-from .subscription.depends import require_subscription, SubscriptionResponse
+from .subscription.depends import require_subscription, SubscriptionToken
 from .subscription.router import router as subscription_router
 from .utils import (
     State,
@@ -204,18 +204,15 @@ def fetch_result(email: str, application: str, key: str):
 async def async_service(
     request: Request,
     # background_tasks: BackgroundTasks,
-    subscription: SubscriptionResponse = Depends(require_subscription),
+    subscription: SubscriptionToken = Depends(require_subscription),
 ):
     """generic handler for async api."""
 
-    email = subscription.email
-    tier = subscription.tier
-    application = subscription.application
-    operation_counter.labels(api=application, user=email, operation="received").inc()
+    operation_counter.labels(api=subscription.application, user=subscription.email, operation="received").inc()
 
-    key = await make_request(email, application, request)
+    key = await make_request(subscription.email, subscription.application, request)
 
-    operation_counter.labels(api=application, user=email, operation="accepted").inc()
+    operation_counter.labels(api=subscription.application, user=subscription.email, operation="accepted").inc()
 
     # activity = ActivityCreate(
     #     request=f"/async/{application}",
