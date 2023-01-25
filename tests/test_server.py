@@ -25,7 +25,7 @@ def client(monkeypatch):
         return SubscriptionToken(
             user_id=1, subscription_id=1, application_id=1,
             email="user@test.com", tier=SubscriptionTier.TRIAL, application="test",
-            access_token="", role="user"
+            access_token="", role="user", name="user", expires_days=1,
         )
 
     monkeypatch.setenv("OUT_KIND", "MEM")

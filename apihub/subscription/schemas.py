@@ -3,16 +3,14 @@ from typing import Optional, List
 
 from enum import Enum
 from pydantic import BaseModel
-
 from fastapi_jwt_auth import AuthJWT
 
+from ..security.schemas import ( SecurityToken )
 
-class SubscriptionToken(BaseModel):
-    user_id: int
-    role: str
+
+class SubscriptionToken(SecurityToken):
     subscription_id: int
     application_id: int
-    email: str
     tier: str
     application: str
     access_token: Optional[str] = None
@@ -26,12 +24,14 @@ class SubscriptionToken(BaseModel):
         access_token = Authorize.create_access_token(
             subject=self.email,
             user_claims={
+                "name": self.name,
                 "role": self.role,
                 "user_id": self.user_id,
                 "subscription_id": self.subscription_id,
                 "application_id": self.application_id,
                 "tier": self.tier,
                 "application": self.application,
+                "expires_days": self.expires_days,
             },
         )
         return access_token
@@ -42,6 +42,7 @@ class SubscriptionToken(BaseModel):
         claims = Authorize.get_raw_jwt()
         return cls(
             email=email,
+            name=claims["name"],
             role=claims["role"],
             user_id=claims["user_id"],
             subscription_id=claims["subscription_id"],

@@ -13,7 +13,7 @@ class SecurityToken(BaseModel):
     role: str
     name: str
     user_id: int
-    expires_days: int
+    expires_days: Optional[int] = None
     access_token: Optional[str] = None
 
     def __init__(self, **kwargs):
@@ -26,7 +26,9 @@ class SecurityToken(BaseModel):
         expires_time = datetime.timedelta(days=self.expires_days)
         access_token = Authorize.create_access_token(
             subject=self.email,
-            user_claims={"role": self.role, "name": self.name, "user_id": self.user_id},
+            user_claims={
+                "role": self.role, "name": self.name, "user_id": self.user_id,
+            },
             expires_time=expires_time,
         )
         return access_token
