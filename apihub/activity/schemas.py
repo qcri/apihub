@@ -8,27 +8,13 @@ class ActivityBase(BaseModel):
     ip: Optional[str] = None
     path: str
     method: str
-    user_id: int
-    application_id: int
-    subscription_id: int
-    request_key: Optional[str] = None
-    payload: Optional[str] = None
-    response: Optional[str] = None
+    user_id: int = -1
+    request_body: Optional[str] = None
+    response_status_code: Optional[str] = None
+    response_body: Optional[str] = None
 
 
-class ActivityCreate(ActivityBase):
-    request: str
-    username: Optional[str] = None
-    tier: str
-    status: str
-    request_key: Optional[str] = None
-    result: Optional[str] = None
-    payload: Optional[str] = None
-    ip_address: Optional[str] = None
-    latency: Optional[float] = None
-
-
-class ActivityDetails(ActivityCreate):
+class ActivityDetails(ActivityBase):
     created_at: datetime
 
 

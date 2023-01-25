@@ -1,9 +1,11 @@
 import sys
 import functools
+from functools import partial
 import logging
-from typing import Dict, Any
+from typing import Coroutine, Dict, Any
 
-from fastapi import FastAPI, HTTPException, Request, Query, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Request, Query, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from fastapi_jwt_auth import AuthJWT
 from fastapi_jwt_auth.exceptions import AuthJWTException
@@ -13,9 +15,9 @@ from jsonschema.exceptions import ValidationError
 from dotenv import load_dotenv
 from pipeline import Message, Settings, Command, CommandActions, Monitor
 
-from .common.db_session import db_context
-from .activity.schemas import ActivityStatus, ActivityCreate
-from .activity.queries import ActivityQuery
+from .common.db_session import create_session
+from .activity.schemas import ActivityStatus
+from .activity.middlewares import ActivityLogger
 from .security.depends import RateLimiter, RateLimits, require_user
 from .security.router import router as security_router
 from .subscription.depends import require_subscription, SubscriptionToken
@@ -84,6 +86,8 @@ api.include_router(
 api.include_router(
     subscription_router, tags=["subscription"], dependencies=[Depends(ip_rate_limited)]
 )
+
+api.add_middleware(ActivityLogger)
 
 
 @api.exception_handler(AuthJWTException)
@@ -203,7 +207,6 @@ def fetch_result(email: str, application: str, key: str):
 )
 async def async_service(
     request: Request,
-    # background_tasks: BackgroundTasks,
     subscription: SubscriptionToken = Depends(require_subscription),
 ):
     """generic handler for async api."""
@@ -214,23 +217,6 @@ async def async_service(
 
     operation_counter.labels(api=subscription.application, user=subscription.email, operation="accepted").inc()
 
-    # activity = ActivityCreate(
-    #     request=f"/async/{application}",
-    #     username=username,
-    #     tier=tier,
-    #     status=ActivityStatus.ACCEPTED,
-    #     request_key=str(key),
-    #     result=str(info.dict()),
-    #     payload=str(dct),
-    #     ip_address=str(request.client.host),
-    #     latency=0.0,
-    # )
-    #
-    # def add_activity_task(activity):
-    #     with db_context() as session:
-    #         ActivityQuery(session).create_activity(activity)
-    #
-    # background_tasks.add_task(add_activity_task, activity=activity)
     return AsyncAPIRequestResponse(success=True, key=key)
 
 

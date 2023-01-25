@@ -8,23 +8,17 @@ from .schemas import ActivityStatus
 
 
 class Activity(Base):
-    """
-    This class is used to store activity data.
-    """
-
-    __tablename__ = "activity"
+    __tablename__ = "activities"
 
     id = Column(Integer, primary_key=True, index=True)
     created_at = Column(DateTime, default=datetime.now())
-    request = Column(String)
-    username = Column(String)
-    tier = Column(Enum(SubscriptionTier), default=SubscriptionTier.TRIAL)
-    status = Column(Enum(ActivityStatus), default=ActivityStatus.ACCEPTED)
-    request_key = Column(String)
-    result = Column(String)
-    payload = Column(String)
-    ip_address = Column(String)
-    latency = Column(Float)
+    ip = Column(String)
+    path = Column(String)
+    method = Column(String)
+    user_id = Column(Integer, default=-1)
+    request_body = Column(String)
+    response_status_code = Column(String)
+    response_body = Column(String)
 
     def __str__(self):
-        return f"{self.request} || {self.username}"
+        return f"{self.ip} || {self.path} || {self.method} || {self.user_id}"

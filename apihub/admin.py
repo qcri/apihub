@@ -6,10 +6,11 @@ from apihub.common.db_session import db_context, Base, DB_ENGINE, create_session
 from apihub.common.redis_session import redis_conn
 from apihub.security.schemas import UserCreate, UserType, ProfileBase
 from apihub.security.queries import UserQuery
-from apihub.security.models import User, Profile
+from apihub.security.models import *
 from apihub.subscription.queries import SubscriptionQuery
-from apihub.subscription.models import Application, Subscription, Pricing
+from apihub.subscription.models import *
 from apihub.subscription.schemas import ( ApplicationCreate, SubscriptionCreate, )
+from apihub.activity.models import *
 
 
 class SuperUser(BaseSettings):
@@ -29,6 +30,7 @@ class SuperUser(BaseSettings):
 def init():
     Base.metadata.bind = DB_ENGINE
     Base.metadata.create_all()
+    print("\n".join(Base.metadata.tables.keys()), file=sys.stderr)
 
     with db_context() as session:
         user = SuperUser().as_usercreate()
