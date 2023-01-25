@@ -6,10 +6,9 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi_jwt_auth import AuthJWT
 
 from ..common.db_session import create_session
-from .schemas import UserCreate, UserBase, UserRegister, UserType
+from .schemas import UserCreate, UserBase, UserRegister, UserType, SecurityToken
 from .queries import UserQuery, UserException
 from .depends import require_token, require_admin, require_app
-from .helpers import make_token
 
 
 security = HTTPBasic()
@@ -28,14 +27,7 @@ def get_config():
     return SecuritySettings()
 
 
-class AuthenticateResponse(BaseModel):
-    email: str
-    role: str
-    access_token: str
-    expires_time: int
-
-
-@router.get("/_authenticate")
+@router.get("/_authenticate", response_model=SecurityToken)
 async def _authenticate(
     credentials: HTTPBasicCredentials = Depends(security),
     expires_days: int = 1,
@@ -54,16 +46,15 @@ async def _authenticate(
     if expires_days > SecuritySettings().security_token_expires_time:
         expires_days = SecuritySettings().security_token_expires_time
 
-    expires_time = datetime.timedelta(days=expires_days)
-
-    Authorize = AuthJWT()
-    access_token = make_token(user, expires_time)
-    return AuthenticateResponse(
+    security_token = SecurityToken(
         email=user.email,
         role=user.role,
-        expires_time=expires_time.seconds,
-        access_token=access_token,
+        name=user.name,
+        user_id=user.id,
+        expires_days=expires_days,
     )
+
+    return security_token
 
 
 @router.get("/user")
