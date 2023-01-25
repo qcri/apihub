@@ -114,3 +114,11 @@ class UserSession(UserBase):
 
 class User(UserSession):
     pass
+
+
+class ProfileBase(BaseModel):
+    first_name: str
+    last_name: str
+    bio: Optional[str]
+    url: Optional[str]
+    avatar: Optional[str]
