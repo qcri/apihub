@@ -6,6 +6,9 @@ from sqlalchemy_utils.functions import (
     create_database,
     drop_database,
 )
+from apihub.security.models import *
+from apihub.subscription.models import *
+from apihub.activity.models import *
 
 
 DB_ENGINE = get_db_engine()
