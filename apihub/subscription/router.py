@@ -214,6 +214,7 @@ async def get_application_token(
 
     subscription_token = SubscriptionToken(
         email=email,
+        name = user.name,
         user_id=user.id,
         role=user.role,
         application=application,
