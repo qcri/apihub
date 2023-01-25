@@ -21,20 +21,12 @@ def client(monkeypatch):
     def _ip_rate_limited():
         pass
 
-    def _require_subscription(application:str):
-        return SubscriptionToken(
-            user_id=1, subscription_id=1, application_id=1,
-            email="user@test.com", tier=SubscriptionTier.TRIAL, application="test",
-            access_token="", role="user", name="user", expires_days=1,
-        )
 
     monkeypatch.setenv("OUT_KIND", "MEM")
 
     from apihub.server import api, ip_rate_limited
 
     api.dependency_overrides[ip_rate_limited] = _ip_rate_limited
-    api.dependency_overrides[require_subscription] = _require_subscription
-
     api.dependency_overrides[create_session] = _create_session
 
     yield TestClient(api)
@@ -73,9 +65,15 @@ def test_async_service_json(client, db_session, monkeypatch):
     monkeypatch.setattr(
         apihub.server, "get_definition_manager", _get_definition_manager
     )
+    token = SubscriptionToken(
+        user_id=1, subscription_id=1, application_id=1,
+        email="user@test.com", tier=SubscriptionTier.TRIAL, application="test",
+        role="user", name="user", expires_days=1,
+    )
 
     response = client.post(
-        "/async/test", params={"text": "this is simple"}, json={"probability": 0.6}
+        "/async/test", params={"text": "this is simple"}, json={"probability": 0.6},
+        headers={"Authorization": f"Bearer {token.access_token}"}
     )
 
     assert response.status_code == 200
@@ -127,8 +125,15 @@ def test_async_service_json_validation_error(client, db_session, monkeypatch):
         apihub.server, "get_definition_manager", _get_definition_manager
     )
 
+    token = SubscriptionToken(
+        user_id=1, subscription_id=1, application_id=1,
+        email="user@test.com", tier=SubscriptionTier.TRIAL, application="test",
+        role="user", name="user", expires_days=1,
+    )
+
     response = client.post(
-        "/async/test", params={}, json={"probability": 0.6}
+        "/async/test", params={}, json={"probability": 0.6},
+        headers={"Authorization": f"Bearer {token.access_token}"}
     )
 
     assert response.status_code == 422
