@@ -10,3 +10,5 @@ dist
 **.apihub
 **/.DS_Store
 .secrets
+prod.env
+prod
