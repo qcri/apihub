@@ -13,8 +13,8 @@ from fastapi_jwt_auth.exceptions import AuthJWTException
 from apihub.common.db_session import create_session
 from apihub.security.models import User
 from apihub.security.queries import UserQuery
-from apihub.security.schemas import UserCreate, UserType, UserRegister
-from apihub.security.router import router, AuthenticateResponse
+from apihub.security.schemas import UserCreate, UserType, UserRegister, SecurityToken
+from apihub.security.router import router
 from apihub.security.depends import require_admin
 from apihub.security.helpers import hash_password
 
@@ -126,7 +126,7 @@ class TestAuthenticate:
             params={"expires_days": 2},
         )
         assert response.status_code == 200
-        assert AuthenticateResponse.parse_obj(response.json())
+        assert SecurityToken.parse_obj(response.json()).access_token is not None
 
     def test_pretected_no_token(self, client):
         response = client.get(
@@ -140,7 +140,7 @@ class TestAuthenticate:
             headers=self._make_auth_header("tester@test.com", "password"),
         )
         assert response.status_code == 200
-        auth_response = AuthenticateResponse.parse_obj(response.json())
+        auth_response = SecurityToken.parse_obj(response.json())
         token = auth_response.access_token
         response = client.get(
             "/protected", headers={"Authorization": f"Bearer {token}"}
@@ -153,7 +153,7 @@ class TestAuthenticate:
             headers=self._make_auth_header("admin@test.com", "password"),
         )
         assert response.status_code == 200
-        auth_response = AuthenticateResponse.parse_obj(response.json())
+        auth_response = SecurityToken.parse_obj(response.json())
         token = auth_response.access_token
         response = client.get("/admin", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
@@ -164,7 +164,7 @@ class TestAuthenticate:
             headers=self._make_auth_header("publisher@test.com", "password"),
         )
         assert response.status_code == 200
-        auth_response = AuthenticateResponse.parse_obj(response.json())
+        auth_response = SecurityToken.parse_obj(response.json())
         token = auth_response.access_token
         response = client.get("/admin", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 403
@@ -175,7 +175,7 @@ class TestAuthenticate:
             headers=self._make_auth_header("admin@test.com", "password"),
         )
         assert response.status_code == 200
-        auth_response = AuthenticateResponse.parse_obj(response.json())
+        auth_response = SecurityToken.parse_obj(response.json())
         token = auth_response.access_token
 
         response = client.get("/user", headers={"Authorization": f"Bearer {token}"})
@@ -200,7 +200,7 @@ class TestAuthenticate:
             headers=self._make_auth_header("newuser@test.com", "password"),
         )
         assert response.status_code == 200
-        auth_response = AuthenticateResponse.parse_obj(response.json())
+        auth_response = SecurityToken.parse_obj(response.json())
         token = auth_response.access_token
 
         response = client.get(
@@ -215,7 +215,7 @@ class TestAuthenticate:
             headers=self._make_auth_header("admin@test.com", "password"),
         )
         assert response.status_code == 200
-        auth_response = AuthenticateResponse.parse_obj(response.json())
+        auth_response = SecurityToken.parse_obj(response.json())
         token = auth_response.access_token
 
         response = client.get(
@@ -232,7 +232,7 @@ class TestAuthenticate:
             headers=self._make_auth_header("admin@test.com", "password"),
         )
         assert response.status_code == 200
-        auth_response = AuthenticateResponse.parse_obj(response.json())
+        auth_response = SecurityToken.parse_obj(response.json())
         token = auth_response.access_token
 
         response = client.get(
@@ -248,7 +248,7 @@ class TestAuthenticate:
             headers=self._make_auth_header("user@test.com", "password"),
         )
         assert response.status_code == 200
-        auth_response = AuthenticateResponse.parse_obj(response.json())
+        auth_response = SecurityToken.parse_obj(response.json())
         token = auth_response.access_token
 
         response = client.post(
@@ -283,7 +283,7 @@ class TestAuthenticate:
             headers=self._make_auth_header("admin@test.com", "password"),
         )
         assert response.status_code == 200
-        auth_response = AuthenticateResponse.parse_obj(response.json())
+        auth_response = SecurityToken.parse_obj(response.json())
         token = auth_response.access_token
 
         response = client.get(
@@ -324,7 +324,7 @@ class TestAuthenticate:
             headers=self._make_auth_header("app@test.com", "password"),
         )
         assert response.status_code == 200
-        auth_response = AuthenticateResponse.parse_obj(response.json())
+        auth_response = SecurityToken.parse_obj(response.json())
         token = auth_response.access_token
 
         new_user = UserRegister(
@@ -344,7 +344,7 @@ class TestAuthenticate:
             headers=self._make_auth_header("newuser@test.com", "password"),
         )
         assert response.status_code == 200
-        auth_response = AuthenticateResponse.parse_obj(response.json())
+        auth_response = SecurityToken.parse_obj(response.json())
         token = auth_response.access_token
 
         response = client.get("/user", headers={"Authorization": f"Bearer {token}"})

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from fastapi import HTTPException, Depends, Request
 from fastapi_jwt_auth import AuthJWT
 
-from .schemas import UserBaseWithId
+from .schemas import UserBaseWithId, SecurityToken
 
 
 HTTP_429_TOO_MANY_REQUESTS = 429
@@ -52,17 +52,14 @@ class UserOfRole:
     def __call__(self, Authorize: AuthJWT = Depends()):
         Authorize.jwt_required()
 
-        claims = Authorize.get_raw_jwt()
-        role = claims.get("role", "")
-        if role in self.roles:
-            name = claims.get("name", "")
-            email = Authorize.get_jwt_subject()
-            user_id = claims.get("id", "")
+        token = SecurityToken.from_token(Authorize)
+
+        if token.role in self.roles:
             return UserBaseWithId(
-                id=user_id,
-                name=name,
-                email=email,
-                role=role,
+                id=token.user_id,
+                name=token.name,
+                email=token.email,
+                role=token.role,
             )
 
         raise HTTPException(
@@ -73,16 +70,14 @@ class UserOfRole:
 
 def require_token(Authorize: AuthJWT = Depends()) -> UserBaseWithId:
     Authorize.jwt_required()
-    claims  = Authorize.get_raw_jwt()
-    role = claims.get("role", "")
-    name = claims.get("name", "")
-    email = Authorize.get_jwt_subject()
-    user_id = claims.get("id", "")
+
+    token = SecurityToken.from_token(Authorize)
+
     return UserBaseWithId(
-        id=user_id,
-        name=name,
-        email=email,
-        role=role,
+        id=token.user_id,
+        name=token.name,
+        email=token.email,
+        role=token.role,
     )
 
 

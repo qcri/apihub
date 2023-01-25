@@ -36,8 +36,6 @@ class User(Base):
     def __str__(self):
         return f"{self.email} || {self.role} || {self.is_active}"
 
-    
-
 
 class Profile(Base):
     """
@@ -46,7 +44,8 @@ class Profile(Base):
     __tablename__ = "profiles"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
+    first_name = Column(String)
+    last_name = Column(String)
     bio = Column(String)
     url = Column(String)
     avatar = Column(String)
