@@ -16,6 +16,10 @@ from ..common.db_session import Base
 from .schemas import SubscriptionTier, ApplicationCreate, PricingCreate
 
 
+def set_default_path(context):
+    return context.get_current_parameters()["name"].lower().replace(" ", "-")
+
+
 class Application(Base):
     """
     This class is used to store application data.
@@ -25,6 +29,7 @@ class Application(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
+    path = Column(String, unique=True, index=True, nullable=False, default=set_default_path)
     url = Column(String)
     description = Column(String)
     is_active = Column(Boolean, default=True)

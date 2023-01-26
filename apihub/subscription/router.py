@@ -74,9 +74,9 @@ def get_applications(
         raise HTTPException(400, detail=str(e))
 
 
-@router.get("/application/{application}", response_model=ApplicationCreate)
+@router.get("/application/{path}", response_model=ApplicationCreate)
 def get_application(
-        application: str,
+        path: str,
         session: Session = Depends(create_session),
         user: str = Depends(require_logged_in),
     ):
@@ -84,9 +84,9 @@ def get_application(
         """
         Get an application.
         """
-        return ApplicationQuery(session).get_application_by_name(application)
+        return ApplicationQuery(session).get_application_by_path(path)
     except ApplicationException:
-        raise HTTPException(400, f"Error while retrieving application {application}")
+        raise HTTPException(400, f"Error while retrieving application with path {path}")
 
 
 @router.post("/subscription")
@@ -180,9 +180,9 @@ class SubscriptionTokenResponse(BaseModel):
     expires_time: int
 
 
-@router.get("/token/{application}", response_model=SubscriptionToken)
+@router.get("/token/{path}", response_model=SubscriptionToken)
 async def get_application_token(
-    application: str,
+    path: str,
     user: UserBaseWithId = Depends(require_user),
     email: Optional[str] = None,
     expires_days: Optional[
@@ -200,7 +200,7 @@ async def get_application_token(
             raise HTTPException(401, "email is missing")
 
     try:
-        subscription = query.get_active_subscription_by_name(user.id, application)
+        subscription = query.get_active_subscription_by_path(user.id, path)
     except SubscriptionException:
         raise HTTPException(401, f"No active subscription found for user {email}")
 
@@ -217,7 +217,7 @@ async def get_application_token(
         name = user.name,
         user_id=user.id,
         role=user.role,
-        application=application,
+        application=path,
         tier=subscription.tier,
         application_id=subscription.application_id,
         subscription_id=subscription.id,

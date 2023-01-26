@@ -80,17 +80,17 @@ class ApplicationQuery(BaseQuery):
         except NoResultFound:
             raise ApplicationException(f"Application {application_id} not found.")
 
-    def get_application_by_name(self, name: str) -> ApplicationCreate:
+    def get_application_by_path(self, path: str) -> ApplicationCreate:
         """
         Get application by name.
         :param name: Application name.
         :return: application object.
         """
         try:
-            application = self.get_query().filter(Application.name == name).one()
+            application = self.get_query().filter(Application.path == path).one()
             return application.to_schema(with_pricing=True)
         except NoResultFound:
-            raise ApplicationException(f"Application {name} not found.")
+            raise ApplicationException(f"Application with path {path} not found.")
 
     def get_applications(self, email=None) -> List[ApplicationCreate]:
         """
@@ -211,8 +211,8 @@ class SubscriptionQuery(BaseQuery):
             self.session.rollback()
             raise SubscriptionException(f"Error creating subscription: {e}")
 
-    def get_active_subscription_by_name(
-        self, user_id: int, application: str
+    def get_active_subscription_by_path(
+        self, user_id: int, path: str
     ) -> SubscriptionDetails:
         """
         Get active subscription of a user.
@@ -222,7 +222,7 @@ class SubscriptionQuery(BaseQuery):
         """
         try:
             application = self.session.query(Application).filter(
-                Application.name == application
+                Application.path == path
             ).one()
 
             subscription = self.get_query().filter(
